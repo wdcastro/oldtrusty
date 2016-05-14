@@ -10,11 +10,15 @@ public class FileManager {
 		
 	}
 	
+	//Lists directory files by returning ArrayList
 	public ArrayList<String> listDir(){
 		ArrayList<String> dirlist = new ArrayList<String>();
+		
+		//find path to Files folder on server
 		Path rootdir = Paths.get("");
 		Path filedir = rootdir.resolve("files");
-		System.out.println("path created dir");
+		
+		//open stream and loop
 		try(DirectoryStream<Path> stream = Files.newDirectoryStream(filedir)){
 			for(Path file: stream){
 				dirlist.add(file.getFileName().toString());
