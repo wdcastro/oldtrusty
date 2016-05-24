@@ -1,7 +1,13 @@
 import java.security.*;
 import java.security.cert.*;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
+import java.util.Date;
+import java.util.Enumeration;
+import sun.security.x509.*;
 import javax.crypto.*;
 import java.io.*;
+import java.math.BigInteger;
 
 /**
  * @author Joel-Dunstan-21318856
@@ -38,7 +44,8 @@ public class cert {
 	 * @throws IOException 
 	 * @throws NoSuchPaddingException 
 	 */
-	public static void keyGenerator() throws NoSuchAlgorithmException, IOException, NoSuchPaddingException {
+	public static void keyGenerator() 
+	throws NoSuchAlgorithmException, IOException, NoSuchPaddingException {
 		//Initialize Key Generator
 		KeyPairGenerator pkeygen = KeyPairGenerator.getInstance("DSA");
 		//Produce a random number used for secure purposes based on SHA1 with RSA
@@ -81,7 +88,8 @@ public class cert {
 	 * @throws GeneralSecurityException 
 	 * @throws NoSuchAlgorithmException 
 	 */
-	public boolean validate(X509Certificate indip, byte[] fiscert) throws NoSuchAlgorithmException, GeneralSecurityException {
+	public boolean validate(X509Certificate indip, byte[] fiscert) 
+	throws NoSuchAlgorithmException, GeneralSecurityException {
 		try {
 			/*
 			 * Checks the date is valid on the certificate
@@ -115,7 +123,8 @@ public class cert {
 	 * @return mdHash The digest
 	 * @throws NoSuchAlgorithmException 
 	 */
-	public byte[] createDigest(byte[] input, String type) throws NoSuchAlgorithmException {
+	public byte[] createDigest(byte[] input, String type) 
+	throws NoSuchAlgorithmException {
 		//Initialize the Digest and create an object ready for updating
 		MessageDigest md = MessageDigest.getInstance(type);
 		//Update the MessageDigest Object with the data
@@ -135,7 +144,8 @@ public class cert {
 	 * @throws IOException
 	 * @throws GeneralSecurityException
 	 */
-	public static void createKeyStore(String password) throws KeyStoreException, IOException, GeneralSecurityException {
+	public static void createKeyStore(String password)
+	throws KeyStoreException, IOException, GeneralSecurityException {
 		KeyStore ks = KeyStore.getInstance("JKS");
 		char[] pass = password.toCharArray();
 	    // Create the Key Store
@@ -149,11 +159,13 @@ public class cert {
 	 * for people wanting to get files from the server. A keystore stores Certificates
 	 * like so:
 	 * <alias>, <Certificate>
-	 * The alias identifies each certificate and what its vouching for, aliases are
+	 * The alias identifies each certificate and what its vouching for , aliases are
 	 * unique so if an alias already exists when you're trying to store a cert and alias
 	 * under the same names, the keystore will recognise the alias and override the certificate
 	 * currently associated with that alias. This makes it great for replacing invalid
 	 * certificates if needed or simply removing certificates.
+	 * Here I will assume all certificates have been self signed as there is no root authority
+	 * hence the issuer and subject should be the same. The subject will be the alias.
 	 * @param validcert
 	 * @param filename name of the file being vouched for
 	 * @param password the password for the keystore
@@ -162,20 +174,23 @@ public class cert {
 	 * @throws NoSuchAlgorithmException 
 	 * @throws KeyStoreException 
 	 */
-	public void storeTrustedCert(X509Certificate validcert, String filename, String password) throws NoSuchAlgorithmException, CertificateException, IOException, KeyStoreException {
+	public void storeTrustedCert(X509Certificate validcert, String password)
+	throws NoSuchAlgorithmException, CertificateException, IOException, KeyStoreException {
 		KeyStore ks = KeyStore.getInstance("JKS");
 		char[] pass = password.toCharArray();
 	    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
 	    ks.load(keystore, pass);
-	    //This will allow someone to just upload their certificate to the server
-	    if(filename == null) {
-	    	ks.setCertificateEntry(validcert.getSubjectX500Principal().toString(), validcert);
-	    }
-	    //This allows the certificate to be associated with a filename
-	    else {
-	    	ks.setCertificateEntry(filename + validcert.getSubjectX500Principal().toString(), validcert);
-	    }
+	    //This will allow someone to just upload their certificate to the server using -u
+	    ks.setCertificateEntry(validcert.getSubjectX500Principal().toString(), validcert);
 	    keystore.close();
+	}
+	
+	public void addToTheCircleOfLife(X509Certificate cert2add, String filename, String password) throws NoSuchAlgorithmException, CertificateException, IOException, KeyStoreException {
+		KeyStore ks = KeyStore.getInstance("JKS");
+		char[] pass = password.toCharArray();
+	    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
+	    ks.load(keystore, pass);
+	    
 	}
 	
 	/**
@@ -194,6 +209,23 @@ public class cert {
 		return key;
 	}
 	
+	private String getFilenameAlias(String filename, String password) {
+		KeyStore ks = KeyStore.getInstance("JKS");
+		char[] pass = password.toCharArray();
+	    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
+	    ks.load(keystore, pass);
+	    String theOne = null;;
+	    Enumeration<String> loa = ks.aliases();
+	    while(loa.hasMoreElements()) {
+	    	String c = loa.nextElement().toString();
+	    	if(c != null && c.contains(filename)) {
+	    		theOne = c;
+	    		break;
+	    	}
+	    }
+	    return theOne;
+	}
+	
 	/**
 	 * This method will use the keystore and the filename to
 	 * find all the vouches made for a file and simply record how
@@ -201,25 +233,122 @@ public class cert {
 	 * enough vouches to meet the required diameter, then the file is trusted.
 	 * @param rlength the required diameter for the circle of trust
 	 * @return boolean true = rlength reached false = otherwise
+	 * @throws IOException 
+	 * @throws CertificateException 
+	 * @throws NoSuchAlgorithmException 
+	 * @throws KeyStoreException 
 	 */
-	public boolean gettingTheDist(int rlength, String filename) {
-		
-		return true;
+	public boolean gettingTheDist(int rlength, String password, String filename) 
+	throws NoSuchAlgorithmException, CertificateException, IOException, KeyStoreException {
+		KeyStore ks = KeyStore.getInstance("JKS");
+		char[] pass = password.toCharArray();
+	    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
+	    ks.load(keystore, pass);
+	    String theOne = null;;
+	    Enumeration<String> loa = ks.aliases();
+	    while(loa.hasMoreElements()) {
+	    	String c = loa.nextElement().toString();
+	    	if(c != null && c.contains(filename)) {
+	    		theOne = c;
+	    		break;
+	    	}
+	    }
+	    if(theOne == null) {
+	    	System.out.println("File does not exist");
+	    	return false;
+	    }
+	    else {
+	    	String[] alias = theOne.split("-");
+	    	int count = 0;
+	    	for(int it = alias.length - 1; it > 1; it--) {
+	    		if(it == 1) {
+	    			X509Certificate certtoval = (X509Certificate) ks.getCertificate(alias[it]);
+	    			if(validate(certtoval,certtoval.getEncoded())) {
+	    				
+	    			}
+	    		}
+	    		try {
+	    			
+	    		}
+	    		catch (){
+	    			
+	    		}
+	    	}
+	    	if(count >= rlength) {
+	    		return true;
+	    	}
+	    }
+	    return false;
 	}
 	
 	/**
 	 * Create the server's certificate with all the necessary methods above and store
-	 * it in the keystore with the alias "server" which is of course reserved.
-	 * @return server 
+	 * it in the keystore with the alias "oldtrusty" which is of course reserved. Assumes
+	 * keystore has been made already and may or may not have the server certificate there.
+	 * @throws GeneralSecurityException 
+	 * @throws IOException 
 	 */
-	public X509Certificate createServerX509() {
-		return null;
+	public void createServerX509(String password) 
+	throws GeneralSecurityException, IOException {
+		KeyStore ks = KeyStore.getInstance("JKS");
+		char[] pass = password.toCharArray();
+	    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
+	    ks.load(keystore, pass);
+		if(ks.containsAlias("oldtrusty")) {
+			System.out.println("Server Certificate already Exists under alias 'server'");
+		}
+		else {
+			/*
+			 * The code below is based upon 
+			 * http://bfo.com/blog/2011/03/08/odds_and_ends_creating_a_new_x_509_certificate.html
+			 * for creating a X509 Self Signed Certificate in which for this case is the server
+			 */
+			//Get Private and Public Key  
+			byte[] bprivkey = getServerKey("Private");
+			byte[] bpubkey = getServerKey("Public");
+			//Put them into the required types
+			KeyFactory keys = KeyFactory.getInstance("DSA");
+			PrivateKey privkey = keys.generatePrivate(new PKCS8EncodedKeySpec(bprivkey));
+			PublicKey pubkey = keys.generatePublic(new X509EncodedKeySpec(bpubkey));
+			//Initialize the Certificate info
+			X509CertInfo info = new X509CertInfo();
+			//Set the start and end dates for certificate validity
+			Date from = new Date();
+			Date to = new Date(from.getTime() + 365 * 24 * 60 * 60);
+			CertificateValidity interval = new CertificateValidity(from, to);
+			//Set the Serial Number
+			BigInteger sn = new BigInteger(64, new SecureRandom());
+			X500Name owner = new X500Name("oldtrusty");
+		    
+			//Set all the certificate values, its Self Signed so subject and issuer
+			info.set(X509CertInfo.VALIDITY, interval);
+			info.set(X509CertInfo.SERIAL_NUMBER, new CertificateSerialNumber(sn));
+			info.set(X509CertInfo.SUBJECT, new CertificateSubjectName(owner));
+			info.set(X509CertInfo.ISSUER, new CertificateIssuerName(owner));
+			info.set(X509CertInfo.KEY, new CertificateX509Key(pubkey));
+			info.set(X509CertInfo.VERSION, new CertificateVersion(CertificateVersion.V3));
+			//Use SHA256 with RSA encryption for the Signature
+			AlgorithmId algo = new AlgorithmId(AlgorithmId.sha256WithRSAEncryption_oid );
+			info.set(X509CertInfo.ALGORITHM_ID, new CertificateAlgorithmId(algo));
+			
+			// Sign the certificate to identify the algorithm that's used.
+			X509CertImpl cert = new X509CertImpl(info);
+			cert.sign(privkey, "SHA256withRSA");
+			 
+			// Update the algorithm, and resign.
+			algo = (AlgorithmId)cert.get(X509CertImpl.SIG_ALG);
+			info.set(CertificateAlgorithmId.NAME + "." + CertificateAlgorithmId.ALGORITHM, algo);
+			cert = new X509CertImpl(info);
+			cert.sign(privkey, "SHA256withRSA");
+			ks.setCertificateEntry("oldtrusty", cert);
+		}
+		keystore.close();
 	}
 	
 //Will be commented out later	
 public static void main(String args[]) 
 throws IOException, KeyStoreException, GeneralSecurityException {
-	cert.createKeyStore("Imthemofokeystore");
+	cert.createKeyStore(args[1]);
 	cert.keyGenerator();
 	}
 }
