@@ -77,7 +77,7 @@ public class cert {
 				SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
 				KeySpec keySpec = new PBEKeySpec(password.toCharArray(), salt, 65536, 128);
 				SecretKey secretKey = factory.generateSecret(keySpec);
-				SecretKey secret = new SecretKeySpec(secretKey.getEncoded(), "AES/CBC/PKCS5Padding");
+				SecretKey secret = new SecretKeySpec(secretKey.getEncoded(), "AES");
 
 				//
 				Cipher c = Cipher.getInstance("AES/CBC/PKCS5Padding");
@@ -144,7 +144,7 @@ public class cert {
 		SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
 		KeySpec keySpec = new PBEKeySpec(password.toCharArray(), salt, 65536, 128);
 		SecretKey secretKey = factory.generateSecret(keySpec);
-		SecretKey secret = new SecretKeySpec(secretKey.getEncoded(), "AES/CBC/PKCS5Padding");
+		SecretKey secret = new SecretKeySpec(secretKey.getEncoded(), "AES");
 
 		//
 		Cipher c = Cipher.getInstance("AES/CBC/PKCS5Padding");
@@ -322,7 +322,7 @@ public class cert {
 	 */
 	private static byte[] getServerKey(String filename, String password) throws IOException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException, InvalidKeySpecException, InvalidAlgorithmParameterException {
 		FileInputStream keyFile = new java.io.FileInputStream(filename);
-		byte[] key = null;
+		byte[] key = new byte[keyFile.available()];
 		keyFile.read(key);
 		keyFile.close();
 		byte[] dkey = decrypt(key, password);
@@ -396,7 +396,7 @@ throws IOException, KeyStoreException, GeneralSecurityException {
 			System.out.println("Didn't find Keystore");
 		}
 		FileInputStream teste = new FileInputStream("Test.txt");
-		byte[] test = null;
+		byte[] test = new byte[teste.available()];
 		teste.read(test);
 		teste.close();
 		byte[] ttw = encrypt(test, args[0]);
