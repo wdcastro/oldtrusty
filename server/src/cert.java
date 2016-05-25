@@ -204,12 +204,12 @@ public class cert {
 			prikeyfos.write(pri);
 			prikeyfos.close();
 			
-			FileOutputStream fos = new FileOutputStream("oldtrusty.pem");
+			FileOutputStream fos = new FileOutputStream("oldtrusty.cer");
 			fos.write(chain[0].getEncoded());
 			fos.close();
 			
 			// Create the Key Store
-			KeyStore ks = KeyStore.getInstance("PKCS12");
+			KeyStore ks = KeyStore.getInstance("JKS");
 			char[] pass = password.toCharArray();
 		    ks.load(null, pass);
 		    ks.setCertificateEntry("oldtrusty", chain[0]);
@@ -280,7 +280,7 @@ public class cert {
 	 */
 	public void storeTrustedCert(X509Certificate validcert, String password)
 	throws NoSuchAlgorithmException, CertificateException, IOException, KeyStoreException {
-		KeyStore ks = KeyStore.getInstance("PKCS12");
+		KeyStore ks = KeyStore.getInstance("JKS");
 		char[] pass = password.toCharArray();
 	    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
 	    ks.load(keystore, pass);
@@ -300,7 +300,7 @@ public class cert {
 	 * @throws KeyStoreException
 	 */
 	public void addToTheCircleOfLife(X509Certificate cert2add, String filename, String password) throws NoSuchAlgorithmException, CertificateException, IOException, KeyStoreException {
-		KeyStore ks = KeyStore.getInstance("PKCS12");
+		KeyStore ks = KeyStore.getInstance("JKS");
 		char[] pass = password.toCharArray();
 	    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
 	    ks.load(keystore, pass);
@@ -361,7 +361,7 @@ public class cert {
 	public static boolean wantedDOA(String filename,String name, String password) {
 		boolean found = false;
 		try {
-			KeyStore ks = KeyStore.getInstance("PKCS12");
+			KeyStore ks = KeyStore.getInstance("JKS");
 			char[] pass = password.toCharArray();
 		    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
 		    ks.load(keystore, pass);
@@ -400,7 +400,7 @@ public class cert {
 	 */
 	public boolean gettingTheDist(int rlength, String password, String filename) 
 	throws NoSuchAlgorithmException, CertificateException, IOException, KeyStoreException {
-		KeyStore ks = KeyStore.getInstance("PKCS12");
+		KeyStore ks = KeyStore.getInstance("JKS");
 		char[] pass = password.toCharArray();
 	    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
 	    ks.load(keystore, pass);
@@ -422,12 +422,13 @@ public static void main(String args[])
 throws IOException, KeyStoreException, GeneralSecurityException {
 		cert.initCryptoServer(args[0]);
 		try {
-			KeyStore ks = KeyStore.getInstance("PKCS12");
+			KeyStore ks = KeyStore.getInstance("JKS");
 			char[] pass = args[0].toCharArray();
 		    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
 		    ks.load(keystore, pass);
 		    if(ks.containsAlias("oldtrusty")) {
 		    	System.out.println("Found the server certificate");
+		    	System.out.println();
 		    }
 		    else {
 		    	System.out.println("You fucked up");
