@@ -175,8 +175,12 @@ public class cert {
 	public static void initCryptoServer(String password) 
 	throws NoSuchAlgorithmException, IOException, NoSuchPaddingException, InvalidKeyException, CertificateException, SignatureException, NoSuchProviderException, KeyStoreException, IllegalBlockSizeException, BadPaddingException, InvalidParameterSpecException, InvalidKeySpecException, InvalidAlgorithmParameterException {
 		try {
+			@SuppressWarnings({ "unused", "resource" })
+			FileInputStream keystore = new FileInputStream("KeyStore");
+			/*
 			getServerKey("Public.key", password);
 			getServerKey("Private.key", password);
+			*/
 		}
 		catch (IOException e) {
 			/*
@@ -189,12 +193,11 @@ public class cert {
 			X509Certificate[] chain = new X509Certificate[1];
 			chain[0]=keyGen.getSelfCertificate(new X500Name("O=oldtrusty"), (long)365*24*3600);
 			PrivateKey privkey = keyGen.getPrivateKey();
-			PublicKey pubkey = keyGen.getPublicKey();
 			/*
 			 * Code copied and adapted from:
 			 * http://docs.oracle.com/javase/tutorial/security/apisign/step4.html
 			 * They create files named public.key and private.key. 
-			*/
+			
 			byte[] pub = encrypt(pubkey.getEncoded(), password);
 			FileOutputStream pubkeyfos = new FileOutputStream("public.key");
 			pubkeyfos.write(pub);
@@ -203,7 +206,7 @@ public class cert {
 			FileOutputStream prikeyfos = new FileOutputStream("private.key");
 			prikeyfos.write(pri);
 			prikeyfos.close();
-			
+			*/
 			FileOutputStream fos = new FileOutputStream("oldtrusty.der");
 			fos.write(chain[0].getEncoded());
 			fos.close();
@@ -213,6 +216,7 @@ public class cert {
 			char[] pass = password.toCharArray();
 		    ks.load(null, pass);
 		    ks.setCertificateEntry("oldtrusty", chain[0]);
+		    ks.setKeyEntry("private", privkey, password.toCharArray(), chain);
 		    FileOutputStream keystore = new java.io.FileOutputStream("KeyStore");
 		    ks.store(keystore, pass);
 		    keystore.close();
@@ -323,6 +327,7 @@ public class cert {
 	 * @throws InvalidAlgorithmParameterException 
 	 * @throws InvalidKeySpecException 
 	 */
+	@SuppressWarnings("unused")
 	private static byte[] getServerKey(String filename, String password) throws IOException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException, InvalidKeySpecException, InvalidAlgorithmParameterException {
 		FileInputStream keyFile = new java.io.FileInputStream(filename);
 		byte[] key = new byte[keyFile.available()];
@@ -400,7 +405,9 @@ public class cert {
 	 * @throws CertificateException 
 	 * @throws NoSuchAlgorithmException 
 	 * @throws KeyStoreException 
+	 * 
 	 */
+	@SuppressWarnings("unused")
 	public boolean gettingTheDist(int rlength, String password, String filename) 
 	throws NoSuchAlgorithmException, CertificateException, IOException, KeyStoreException {
 		KeyStore ks = KeyStore.getInstance("JKS");
@@ -413,9 +420,12 @@ public class cert {
 	    	return false;
 	    }   
 	    else {
-	    	@SuppressWarnings("unused")
-			Enumeration<String> enumString = ks.aliases();
-	    	
+	        
+			Enumeration<String> es = ks.aliases();
+	    	while(es.hasMoreElements()) {
+	    		int count = 0;
+	    		String check = es.nextElement();
+	    	}
 	    }
 	    return false;
 	}
@@ -427,7 +437,7 @@ throws IOException, KeyStoreException, GeneralSecurityException {
 		try {
 			KeyStore ks = KeyStore.getInstance("JKS");
 			char[] pass = args[0].toCharArray();
-		    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
+		    FileInputStream keystore = new FileInputStream("KeyStore");
 		    ks.load(keystore, pass);
 		    if(ks.containsAlias("oldtrusty")) {
 		    	System.out.println("Found the server certificate");
@@ -448,17 +458,13 @@ throws IOException, KeyStoreException, GeneralSecurityException {
 			byte[] decryptest = decrypt(ttw, args[0]);
 			dtest.write(decryptest);
 			dtest.close();
-			FileInputStream fis = new FileInputStream("otd.der");
-			CertificateFactory cf = CertificateFactory.getInstance("X.509");
-		    X509Certificate c = (X509Certificate) cf.generateCertificate(fis);
-		    storeTrustedCert(c, args[0]);
 		    Enumeration<String> s = ks.aliases();
 		    while(s.hasMoreElements()) {
 		    	System.out.println(s.nextElement().toString());
 		    }
 		}
-		catch (FileNotFoundException e) {
-			System.out.println("Didn't find Keystore");
+		catch (Exception e) {
+			System.out.println(e + "Didn't find Keystore");
 		}
 	}
 }
