@@ -204,7 +204,7 @@ public class cert {
 			prikeyfos.write(pri);
 			prikeyfos.close();
 			
-			FileOutputStream fos = new FileOutputStream("oldtrusty.cer");
+			FileOutputStream fos = new FileOutputStream("oldtrusty.der");
 			fos.write(chain[0].getEncoded());
 			fos.close();
 			
@@ -278,14 +278,17 @@ public class cert {
 	 * @throws NoSuchAlgorithmException 
 	 * @throws KeyStoreException 
 	 */
-	public void storeTrustedCert(X509Certificate validcert, String password)
+	public static void storeTrustedCert(X509Certificate validcert, String password)
 	throws NoSuchAlgorithmException, CertificateException, IOException, KeyStoreException {
 		KeyStore ks = KeyStore.getInstance("JKS");
 		char[] pass = password.toCharArray();
-	    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
+	    FileInputStream keystore = new FileInputStream("KeyStore");
 	    ks.load(keystore, pass);
+	    keystore.close();
 	    //This will allow someone to just upload their certificate to the server using -u
 	    ks.setCertificateEntry(validcert.getSubjectX500Principal().toString(), validcert);
+	    FileOutputStream out = new java.io.FileOutputStream("KeyStore");
+	    ks.store(out, pass);
 	    keystore.close();
 	}
 	
@@ -428,27 +431,34 @@ throws IOException, KeyStoreException, GeneralSecurityException {
 		    ks.load(keystore, pass);
 		    if(ks.containsAlias("oldtrusty")) {
 		    	System.out.println("Found the server certificate");
-		    	System.out.println();
 		    }
 		    else {
 		    	System.out.println("You fucked up");
 		    }
 		    keystore.close();
+		    FileInputStream teste = new FileInputStream("Test.txt");
+			byte[] test = new byte[teste.available()];
+			teste.read(test);
+			teste.close();
+			byte[] ttw = encrypt(test, args[0]);
+			FileOutputStream ttwtest = new FileOutputStream("TTW.txt");
+			ttwtest.write(ttw);
+			ttwtest.close();
+			FileOutputStream dtest = new FileOutputStream("DTEST.txt");
+			byte[] decryptest = decrypt(ttw, args[0]);
+			dtest.write(decryptest);
+			dtest.close();
+			FileInputStream fis = new FileInputStream("otd.der");
+			CertificateFactory cf = CertificateFactory.getInstance("X.509");
+		    X509Certificate c = (X509Certificate) cf.generateCertificate(fis);
+		    storeTrustedCert(c, args[0]);
+		    Enumeration<String> s = ks.aliases();
+		    while(s.hasMoreElements()) {
+		    	System.out.println(s.nextElement().toString());
+		    }
 		}
 		catch (FileNotFoundException e) {
 			System.out.println("Didn't find Keystore");
 		}
-		FileInputStream teste = new FileInputStream("Test.txt");
-		byte[] test = new byte[teste.available()];
-		teste.read(test);
-		teste.close();
-		byte[] ttw = encrypt(test, args[0]);
-		FileOutputStream ttwtest = new FileOutputStream("TTW.txt");
-		ttwtest.write(ttw);
-		ttwtest.close();
-		FileOutputStream dtest = new FileOutputStream("DTEST.txt");
-		byte[] decryptest = decrypt(ttw, args[0]);
-		dtest.write(decryptest);
-		dtest.close();
 	}
 }
