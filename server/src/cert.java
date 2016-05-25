@@ -1,16 +1,20 @@
 import java.security.*;
 import java.security.cert.*;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.X509EncodedKeySpec;
-import java.util.Date;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.InvalidParameterSpecException;
+import java.security.spec.KeySpec;
 import java.util.Enumeration;
+import sun.security.tools.keytool.CertAndKeyGen;
 import sun.security.x509.*;
 import javax.crypto.*;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
+
 import java.io.*;
-import java.math.BigInteger;
 
 /**
- * @author Joel-Dunstan-21318856
+ * @author Joel-Dunstan - 21318856
  * The cert class has the task of managing the server's certificates whether
  * it be creating the server's certificate, verifying digital signatures
  * To fully create a certificate we need to, in order:
@@ -35,46 +39,184 @@ import java.math.BigInteger;
  * 		send error message to client, tell them to make a new certificate
  */
 public class cert {
+	/**
+	 * javapapers.com/java/java-file-encryption-decryption-using-aes-password-based-encryption-pbe/
+	 * @throws IOException 
+	 * @throws NoSuchAlgorithmException 
+	 * @throws InvalidKeySpecException 
+	 * @throws NoSuchPaddingException 
+	 * @throws InvalidAlgorithmParameterException 
+	 * @throws InvalidKeyException 
+	 * @throws BadPaddingException 
+	 * @throws IllegalBlockSizeException 
+	 * @throws InvalidParameterSpecException 
+	 */
+	public static byte[] encrypt(byte[] file, String password) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException, NoSuchPaddingException, InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException, InvalidParameterSpecException {
+
+			// password, iv and salt should be transferred to the other end
+			// in a secure manner
+
+			// salt is used for encoding
+			// writing it to a file
+			// salt should be transferred to the recipient securely
+			// for decryption
+		    byte[] salt;
+		    byte[] iv;
+		    byte[] encrypted;
+			try {
+				FileInputStream saltInFile = new FileInputStream("salt.enc");
+				salt = new byte[saltInFile.available()];
+				saltInFile.read(salt);
+				saltInFile.close();
+				
+				FileInputStream ivInFile = new FileInputStream("iv.enc");
+				iv = new byte[ivInFile.available()];
+				ivInFile.read(iv);
+				ivInFile.close();
+				
+				SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+				KeySpec keySpec = new PBEKeySpec(password.toCharArray(), salt, 65536, 128);
+				SecretKey secretKey = factory.generateSecret(keySpec);
+				SecretKey secret = new SecretKeySpec(secretKey.getEncoded(), "AES/CBC/PKCS5Padding");
+
+				//
+				Cipher c = Cipher.getInstance("AES/CBC/PKCS5Padding");
+				c.init(Cipher.ENCRYPT_MODE, secret, new IvParameterSpec(iv));
+				encrypted = c.doFinal(file);
+			}
+			catch (FileNotFoundException e) {
+				salt = new byte[8];
+				SecureRandom secureRandom = new SecureRandom();
+				secureRandom.nextBytes(salt);
+				FileOutputStream saltOutFile = new FileOutputStream("salt.enc");
+				saltOutFile.write(salt);
+				saltOutFile.close();
+
+				SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+				KeySpec keySpec = new PBEKeySpec(password.toCharArray(), salt, 65536, 128);
+				SecretKey secretKey = factory.generateSecret(keySpec);
+				SecretKey secret = new SecretKeySpec(secretKey.getEncoded(), "AES");
+
+				//
+				Cipher c = Cipher.getInstance("AES/CBC/PKCS5Padding");
+				c.init(Cipher.ENCRYPT_MODE, secret);
+				AlgorithmParameters params = c.getParameters();
+
+				// iv adds randomness to the text and just makes the mechanism more
+				// secure
+				// used while initializing the cipher
+				// file to store the iv
+				FileOutputStream ivOutFile = new FileOutputStream("iv.enc");
+				iv = params.getParameterSpec(IvParameterSpec.class).getIV();
+				ivOutFile.write(iv);
+				ivOutFile.close();
+				encrypted = c.doFinal(file);
+			}
+			return encrypted;
+	}
 	
 	/**
-	 * Generate a key pair for the server, this can only be called within
-	 * the program. This random number will be RSA based upon SHA256 with a size
-	 * of 1024 bits and then it will save via the path provided by parameter
+	 * javapapers.com/java/java-file-encryption-decryption-using-aes-password-based-encryption-pbe/
+	 * @param file
+	 * @param password
+	 * @return
+	 * @throws IOException
+	 * @throws NoSuchAlgorithmException
+	 * @throws InvalidKeySpecException
+	 * @throws NoSuchPaddingException
+	 * @throws InvalidKeyException
+	 * @throws InvalidAlgorithmParameterException
+	 * @throws IllegalBlockSizeException
+	 * @throws BadPaddingException
+	 */
+	public static byte[] decrypt(byte[] file, String password) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException, NoSuchPaddingException, InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException {
+		byte[] decrypted;
+		FileInputStream saltInFile = new FileInputStream("salt.enc");
+		byte[] salt = new byte[saltInFile.available()];
+		saltInFile.read(salt);
+		saltInFile.close();
+		
+		FileInputStream ivInFile = new FileInputStream("iv.enc");
+		byte[] iv = new byte[ivInFile.available()];
+		ivInFile.read(iv);
+		ivInFile.close();
+		
+		SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+		KeySpec keySpec = new PBEKeySpec(password.toCharArray(), salt, 65536, 128);
+		SecretKey secretKey = factory.generateSecret(keySpec);
+		SecretKey secret = new SecretKeySpec(secretKey.getEncoded(), "AES/CBC/PKCS5Padding");
+
+		//
+		Cipher c = Cipher.getInstance("AES/CBC/PKCS5Padding");
+		c.init(Cipher.DECRYPT_MODE, secret, new IvParameterSpec(iv));
+		decrypted = c.doFinal(file);
+		return decrypted;
+	}
+	
+	/**
+	 * Initialize all the server encryption and decryption mechanisms. In this method
+	 * we will set up if they dont already exist:
+	 * The server Keys Public and Private, if only one exists overwrite, assume lost or stolen.
+	 * Create the certificate based upon these keys
 	 * @throws NoSuchAlgorithmException 
 	 * @throws IOException 
 	 * @throws NoSuchPaddingException 
+	 * @throws NoSuchProviderException 
+	 * @throws SignatureException 
+	 * @throws CertificateException 
+	 * @throws InvalidKeyException 
+	 * @throws KeyStoreException 
+	 * @throws BadPaddingException 
+	 * @throws IllegalBlockSizeException 
+	 * @throws InvalidParameterSpecException 
+	 * @throws InvalidKeySpecException 
+	 * @throws InvalidAlgorithmParameterException 
 	 */
-	public static void keyGenerator() 
-	throws NoSuchAlgorithmException, IOException, NoSuchPaddingException {
-		//Initialize Key Generator
-		KeyPairGenerator pkeygen = KeyPairGenerator.getInstance("DSA");
-		//Produce a random number used for secure purposes based on SHA1 with RSA
-		SecureRandom srand = SecureRandom.getInstance("SHA1PRNG");
-		/*
-		 * Tell the Key Generator to create keys of 1024 bits using the
-		 * random number we just generated based on SHA1PRNG 
-		*/
-		pkeygen.initialize(2048, srand);
-		//Create the Key Pair
-		KeyPair pkey = pkeygen.generateKeyPair();
-		//Grab the Private and Public Keys
-		PrivateKey privkey = pkey.getPrivate();
-		PublicKey pubkey = pkey.getPublic();
-		/*
-		 * Code copied and adapted from:
-		 * http://docs.oracle.com/javase/tutorial/security/apisign/step4.html
-		 * They create files named public.key and private.key. 
-		 * TODO add a path to the files to put them in a certain location
-		 */
-		byte[] pub = pubkey.getEncoded();
-		FileOutputStream pubkeyfos = new FileOutputStream("public.key");
-		pubkeyfos.write(pub);
-		pubkeyfos.close();
-		//TODO encrypt private key file
-		byte[] pri = privkey.getEncoded();
-		FileOutputStream prikeyfos = new FileOutputStream("private.key");
-		prikeyfos.write(pri);
-		prikeyfos.close();	
+	public static void initCryptoServer(String password) 
+	throws NoSuchAlgorithmException, IOException, NoSuchPaddingException, InvalidKeyException, CertificateException, SignatureException, NoSuchProviderException, KeyStoreException, IllegalBlockSizeException, BadPaddingException, InvalidParameterSpecException, InvalidKeySpecException, InvalidAlgorithmParameterException {
+		try {
+			getServerKey("Public.key", password);
+			getServerKey("Private.key", password);
+		}
+		catch (IOException e) {
+			/*
+			 * Code adapted from 
+			 * http://www.pixelstech.net/article/1406724116-Generate-certificate-in-Java----Self-signed-certificate
+			 */
+			CertAndKeyGen keyGen = new CertAndKeyGen("RSA","SHA256WithRSA");
+			keyGen.generate(2048);
+			//Generate self signed certificate
+			X509Certificate[] chain = new X509Certificate[1];
+			chain[0]=keyGen.getSelfCertificate(new X500Name("O=oldtrusty"), (long)365*24*3600);
+			PrivateKey privkey = keyGen.getPrivateKey();
+			PublicKey pubkey = keyGen.getPublicKey();
+			/*
+			 * Code copied and adapted from:
+			 * http://docs.oracle.com/javase/tutorial/security/apisign/step4.html
+			 * They create files named public.key and private.key. 
+			*/
+			byte[] pub = encrypt(pubkey.getEncoded(), password);
+			FileOutputStream pubkeyfos = new FileOutputStream("public.key");
+			pubkeyfos.write(pub);
+			pubkeyfos.close();
+			byte[] pri = encrypt(privkey.getEncoded(), password);
+			FileOutputStream prikeyfos = new FileOutputStream("private.key");
+			prikeyfos.write(pri);
+			prikeyfos.close();
+			
+			FileOutputStream fos = new FileOutputStream("oldtrusty.pem");
+			fos.write(chain[0].getEncoded());
+			fos.close();
+			
+			// Create the Key Store
+			KeyStore ks = KeyStore.getInstance("JKS");
+			char[] pass = password.toCharArray();
+		    ks.load(null, pass);
+		    ks.setCertificateEntry("oldtrusty", chain[0]);
+		    FileOutputStream keystore = new java.io.FileOutputStream("KeyStore");
+		    ks.store(keystore, pass);
+		    keystore.close();
+		}
 	}
 	
 	/**
@@ -116,45 +258,6 @@ public class cert {
 	}
 	
 	/**
-	 * This method creates a cipher or Message Digest using a algorithm specified by
-	 * the type parameter, an example might be creating a SHA-256 Hash.
-	 * @param input a byte array to which we will be "type" to, e.g. SHA-256 on input
-	 * @param type String which says what type of digest we'll use.
-	 * @return mdHash The digest
-	 * @throws NoSuchAlgorithmException 
-	 */
-	public byte[] createDigest(byte[] input, String type) 
-	throws NoSuchAlgorithmException {
-		//Initialize the Digest and create an object ready for updating
-		MessageDigest md = MessageDigest.getInstance(type);
-		//Update the MessageDigest Object with the data
-		md.update(input);
-		//Calculate the Digest using the type specified e.g. SHA-256
-		byte[] mdHash = md.digest(input);
-		//Return the Digest
-		return mdHash;
-	}
-	
-	/**
-	 * Create a keystore for the Trusted certificates to be stored. We will later
-	 * create a circle of trust by using aliases with say <filename><voucher> connecting
-	 * subject to subject till we get to the required length. 
-	 * @param password
-	 * @throws KeyStoreException
-	 * @throws IOException
-	 * @throws GeneralSecurityException
-	 */
-	public static void createKeyStore(String password)
-	throws KeyStoreException, IOException, GeneralSecurityException {
-		KeyStore ks = KeyStore.getInstance("JKS");
-		char[] pass = password.toCharArray();
-	    // Create the Key Store
-	    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
-	    ks.load(null, pass);
-	    keystore.close();
-	}
-	
-	/**
 	 * This method stores the certs that have been validated to be used later
 	 * for people wanting to get files from the server. A keystore stores Certificates
 	 * like so:
@@ -166,6 +269,7 @@ public class cert {
 	 * certificates if needed or simply removing certificates.
 	 * Here I will assume all certificates have been self signed as there is no root authority
 	 * hence the issuer and subject should be the same. The subject will be the alias.
+	 * This will be used for the -u command on clients.
 	 * @param validcert
 	 * @param filename name of the file being vouched for
 	 * @param password the password for the keystore
@@ -185,6 +289,16 @@ public class cert {
 	    keystore.close();
 	}
 	
+	/**
+	 * This method is used for the vouching of files by clients and here it will check that
+	 * @param cert2add
+	 * @param filename
+	 * @param password
+	 * @throws NoSuchAlgorithmException
+	 * @throws CertificateException
+	 * @throws IOException
+	 * @throws KeyStoreException
+	 */
 	public void addToTheCircleOfLife(X509Certificate cert2add, String filename, String password) throws NoSuchAlgorithmException, CertificateException, IOException, KeyStoreException {
 		KeyStore ks = KeyStore.getInstance("JKS");
 		char[] pass = password.toCharArray();
@@ -198,29 +312,35 @@ public class cert {
 	 * @param filename
 	 * @return key The Private or Public key for the server
 	 * @throws IOException
+	 * @throws NoSuchPaddingException
+	 * @throws NoSuchAlgorithmException 
+	 * @throws InvalidKeyException 
+	 * @throws BadPaddingException 
+	 * @throws IllegalBlockSizeException 
+	 * @throws InvalidAlgorithmParameterException 
+	 * @throws InvalidKeySpecException 
 	 */
-	@SuppressWarnings("unused")
-	private static byte[] getServerKey(String filename) throws IOException {
+	private static byte[] getServerKey(String filename, String password) throws IOException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException, InvalidKeySpecException, InvalidAlgorithmParameterException {
 		FileInputStream keyFile = new java.io.FileInputStream(filename);
-		byte[] key = new byte[keyFile.available()];
-		//TODO address encryption of private key file
+		byte[] key = null;
 		keyFile.read(key);
 		keyFile.close();
-		return key;
+		byte[] dkey = decrypt(key, password);
+		return dkey;
 	}
 	
-	private String getFilenameAlias(String filename, String password) {
-		KeyStore ks = KeyStore.getInstance("JKS");
-		char[] pass = password.toCharArray();
-	    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
-	    ks.load(keystore, pass);
-	    String theOne = null;;
+
+	private String getFilenameAlias(String filename, String password, KeyStore ks) throws KeyStoreException, NoSuchAlgorithmException, CertificateException, IOException {
+	    String theOne = null;
 	    Enumeration<String> loa = ks.aliases();
 	    while(loa.hasMoreElements()) {
 	    	String c = loa.nextElement().toString();
-	    	if(c != null && c.contains(filename)) {
-	    		theOne = c;
-	    		break;
+	    	String[] splitc = c.split("-");
+	    	if(splitc.length == 3) {
+	    		if(c != null && splitc[0].equals(filename) && splitc[1].equals(splitc[2])) {
+	    			theOne = c;
+	    			break;
+	    		}
 	    	}
 	    }
 	    return theOne;
@@ -244,111 +364,48 @@ public class cert {
 		char[] pass = password.toCharArray();
 	    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
 	    ks.load(keystore, pass);
-	    String theOne = null;;
-	    Enumeration<String> loa = ks.aliases();
-	    while(loa.hasMoreElements()) {
-	    	String c = loa.nextElement().toString();
-	    	if(c != null && c.contains(filename)) {
-	    		theOne = c;
-	    		break;
-	    	}
-	    }
+	    String theOne = getFilenameAlias(filename, password, ks);
 	    if(theOne == null) {
-	    	System.out.println("File does not exist");
+	    	System.out.println("File does not exist in Keystore");
 	    	return false;
-	    }
+	    }   
 	    else {
-	    	String[] alias = theOne.split("-");
-	    	int count = 0;
-	    	for(int it = alias.length - 1; it > 1; it--) {
-	    		if(it == 1) {
-	    			X509Certificate certtoval = (X509Certificate) ks.getCertificate(alias[it]);
-	    			if(validate(certtoval,certtoval.getEncoded())) {
-	    				
-	    			}
-	    		}
-	    		try {
-	    			
-	    		}
-	    		catch (){
-	    			
-	    		}
-	    	}
-	    	if(count >= rlength) {
-	    		return true;
-	    	}
+	    	
 	    }
 	    return false;
 	}
-	
-	/**
-	 * Create the server's certificate with all the necessary methods above and store
-	 * it in the keystore with the alias "oldtrusty" which is of course reserved. Assumes
-	 * keystore has been made already and may or may not have the server certificate there.
-	 * @throws GeneralSecurityException 
-	 * @throws IOException 
-	 */
-	public void createServerX509(String password) 
-	throws GeneralSecurityException, IOException {
-		KeyStore ks = KeyStore.getInstance("JKS");
-		char[] pass = password.toCharArray();
-	    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
-	    ks.load(keystore, pass);
-		if(ks.containsAlias("oldtrusty")) {
-			System.out.println("Server Certificate already Exists under alias 'server'");
-		}
-		else {
-			/*
-			 * The code below is based upon 
-			 * http://bfo.com/blog/2011/03/08/odds_and_ends_creating_a_new_x_509_certificate.html
-			 * for creating a X509 Self Signed Certificate in which for this case is the server
-			 */
-			//Get Private and Public Key  
-			byte[] bprivkey = getServerKey("Private");
-			byte[] bpubkey = getServerKey("Public");
-			//Put them into the required types
-			KeyFactory keys = KeyFactory.getInstance("DSA");
-			PrivateKey privkey = keys.generatePrivate(new PKCS8EncodedKeySpec(bprivkey));
-			PublicKey pubkey = keys.generatePublic(new X509EncodedKeySpec(bpubkey));
-			//Initialize the Certificate info
-			X509CertInfo info = new X509CertInfo();
-			//Set the start and end dates for certificate validity
-			Date from = new Date();
-			Date to = new Date(from.getTime() + 365 * 24 * 60 * 60);
-			CertificateValidity interval = new CertificateValidity(from, to);
-			//Set the Serial Number
-			BigInteger sn = new BigInteger(64, new SecureRandom());
-			X500Name owner = new X500Name("oldtrusty");
-		    
-			//Set all the certificate values, its Self Signed so subject and issuer
-			info.set(X509CertInfo.VALIDITY, interval);
-			info.set(X509CertInfo.SERIAL_NUMBER, new CertificateSerialNumber(sn));
-			info.set(X509CertInfo.SUBJECT, new CertificateSubjectName(owner));
-			info.set(X509CertInfo.ISSUER, new CertificateIssuerName(owner));
-			info.set(X509CertInfo.KEY, new CertificateX509Key(pubkey));
-			info.set(X509CertInfo.VERSION, new CertificateVersion(CertificateVersion.V3));
-			//Use SHA256 with RSA encryption for the Signature
-			AlgorithmId algo = new AlgorithmId(AlgorithmId.sha256WithRSAEncryption_oid );
-			info.set(X509CertInfo.ALGORITHM_ID, new CertificateAlgorithmId(algo));
-			
-			// Sign the certificate to identify the algorithm that's used.
-			X509CertImpl cert = new X509CertImpl(info);
-			cert.sign(privkey, "SHA256withRSA");
-			 
-			// Update the algorithm, and resign.
-			algo = (AlgorithmId)cert.get(X509CertImpl.SIG_ALG);
-			info.set(CertificateAlgorithmId.NAME + "." + CertificateAlgorithmId.ALGORITHM, algo);
-			cert = new X509CertImpl(info);
-			cert.sign(privkey, "SHA256withRSA");
-			ks.setCertificateEntry("oldtrusty", cert);
-		}
-		keystore.close();
-	}
-	
+
 //Will be commented out later	
 public static void main(String args[]) 
 throws IOException, KeyStoreException, GeneralSecurityException {
-	cert.createKeyStore(args[1]);
-	cert.keyGenerator();
+		cert.initCryptoServer(args[0]);
+		try {
+			KeyStore ks = KeyStore.getInstance("JKS");
+			char[] pass = args[0].toCharArray();
+		    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
+		    ks.load(keystore, pass);
+		    if(ks.containsAlias("oldtrusty")) {
+		    	System.out.println("Found the server certificate");
+		    }
+		    else {
+		    	System.out.println("You fucked up");
+		    }
+		    keystore.close();
+		}
+		catch (FileNotFoundException e) {
+			System.out.println("Didn't find Keystore");
+		}
+		FileInputStream teste = new FileInputStream("Test.txt");
+		byte[] test = null;
+		teste.read(test);
+		teste.close();
+		byte[] ttw = encrypt(test, args[0]);
+		FileOutputStream ttwtest = new FileOutputStream("TTW.txt");
+		ttwtest.write(ttw);
+		ttwtest.close();
+		FileOutputStream dtest = new FileOutputStream("DTEST.txt");
+		byte[] decryptest = decrypt(ttw, args[0]);
+		dtest.write(decryptest);
+		dtest.close();
 	}
 }
