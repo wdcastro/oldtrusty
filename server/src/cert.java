@@ -209,7 +209,7 @@ public class cert {
 			fos.close();
 			
 			// Create the Key Store
-			KeyStore ks = KeyStore.getInstance("JKS");
+			KeyStore ks = KeyStore.getInstance("PKCS12");
 			char[] pass = password.toCharArray();
 		    ks.load(null, pass);
 		    ks.setCertificateEntry("oldtrusty", chain[0]);
@@ -264,7 +264,7 @@ public class cert {
 	 * <alias>, <Certificate>
 	 * The alias identifies each certificate and what its vouching for , aliases are
 	 * unique so if an alias already exists when you're trying to store a cert and alias
-	 * under the same names, the keystore will recognise the alias and override the certificate
+	 * under the same names, the keystore will recognize the alias and override the certificate
 	 * currently associated with that alias. This makes it great for replacing invalid
 	 * certificates if needed or simply removing certificates.
 	 * Here I will assume all certificates have been self signed as there is no root authority
@@ -280,7 +280,7 @@ public class cert {
 	 */
 	public void storeTrustedCert(X509Certificate validcert, String password)
 	throws NoSuchAlgorithmException, CertificateException, IOException, KeyStoreException {
-		KeyStore ks = KeyStore.getInstance("JKS");
+		KeyStore ks = KeyStore.getInstance("PKCS12");
 		char[] pass = password.toCharArray();
 	    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
 	    ks.load(keystore, pass);
@@ -300,7 +300,7 @@ public class cert {
 	 * @throws KeyStoreException
 	 */
 	public void addToTheCircleOfLife(X509Certificate cert2add, String filename, String password) throws NoSuchAlgorithmException, CertificateException, IOException, KeyStoreException {
-		KeyStore ks = KeyStore.getInstance("JKS");
+		KeyStore ks = KeyStore.getInstance("PKCS12");
 		char[] pass = password.toCharArray();
 	    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
 	    ks.load(keystore, pass);
@@ -347,6 +347,46 @@ public class cert {
 	}
 	
 	/**
+	 * This method will be called upon detecting the -n command which
+	 * is when the client has requested another client must be part of the circle
+	 * of trust before they trust the file. For a client to be a part of the circle of
+	 * trust they would have needed to sign another's certificate and hence I will
+	 * simply look for a case where the alias contains
+	 * <filename>-<issuer>-<name> 
+	 * @param filename The name of the file
+	 * @param name the name we're looking for
+	 * @param password password for the keystore/encryption/server
+	 * @return found true = found name false = not found name
+	 */
+	public static boolean wantedDOA(String filename,String name, String password) {
+		boolean found = false;
+		try {
+			KeyStore ks = KeyStore.getInstance("PKCS12");
+			char[] pass = password.toCharArray();
+		    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
+		    ks.load(keystore, pass);
+		    keystore.close();
+			Enumeration<String> loa = ks.aliases();
+		    while(loa.hasMoreElements()) {
+		    	String c = loa.nextElement().toString();
+		    	String[] splitc = c.split("-");
+		    	if(splitc.length == 3) {
+		    		if(c != null && splitc[1].equals(filename) && splitc[2].contains(name)) {
+		    			found = true;
+		    			break;
+		    		}
+		    	}
+		    }
+		    return found;
+		}
+		catch (Exception e) {
+			System.out.println(e + ": Name not found due to exception");
+			found  = false;
+			return found;
+		}
+	}
+	
+	/**
 	 * This method will use the keystore and the filename to
 	 * find all the vouches made for a file and simply record how
 	 * many vouches have been made for that file, if there has been 
@@ -360,7 +400,7 @@ public class cert {
 	 */
 	public boolean gettingTheDist(int rlength, String password, String filename) 
 	throws NoSuchAlgorithmException, CertificateException, IOException, KeyStoreException {
-		KeyStore ks = KeyStore.getInstance("JKS");
+		KeyStore ks = KeyStore.getInstance("PKCS12");
 		char[] pass = password.toCharArray();
 	    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
 	    ks.load(keystore, pass);
@@ -370,6 +410,8 @@ public class cert {
 	    	return false;
 	    }   
 	    else {
+	    	@SuppressWarnings("unused")
+			Enumeration<String> enumString = ks.aliases();
 	    	
 	    }
 	    return false;
@@ -380,7 +422,7 @@ public static void main(String args[])
 throws IOException, KeyStoreException, GeneralSecurityException {
 		cert.initCryptoServer(args[0]);
 		try {
-			KeyStore ks = KeyStore.getInstance("JKS");
+			KeyStore ks = KeyStore.getInstance("PKCS12");
 			char[] pass = args[0].toCharArray();
 		    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
 		    ks.load(keystore, pass);
