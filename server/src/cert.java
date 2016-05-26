@@ -3,6 +3,7 @@ import java.security.cert.*;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.InvalidParameterSpecException;
 import java.security.spec.KeySpec;
+import java.util.ArrayList;
 import java.util.Enumeration;
 
 import sun.misc.BASE64Encoder;
@@ -234,13 +235,14 @@ public class cert {
 	 * if the signature is valid and the date is valid.
 	 * A signature is valid if it can be decrypted using the subject's 
 	 * public key provided in the certificate entry. Once decrypted the Hash calculated
-	 * will be calculated on the header to see if it matches the Hash provided after the decryption. 
+	 * will be calculated on the header to see if it matches the Hash provided after the decryption.
+	 * All this is done by the verify method provided by Java here. 
 	 * @param indip X509 Certificate to be Validated <i><b>I</b>'m <b>N</b>ot <b>D</b>odgy <b>I</b> <b>P</b>romise</i>
 	 * @param fiscert the original byte array used to create the certificate 
 	 * @throws GeneralSecurityException 
 	 * @throws NoSuchAlgorithmException 
 	 */
-	public boolean validate(X509Certificate indip, byte[] fiscert) 
+	public static boolean validate(X509Certificate indip) 
 	throws NoSuchAlgorithmException, GeneralSecurityException {
 		try {
 			/*
@@ -250,12 +252,8 @@ public class cert {
 			 * checkValidity will throw an exception
 			 */
 			indip.checkValidity();
-			//Grab the signature from the certificate
-			byte[] sig = indip.getSignature();
-			Signature sigtovalidate = Signature.getInstance(indip.getSigAlgName());
-			sigtovalidate.initVerify(indip);
-			sigtovalidate.update(fiscert);
-			return sigtovalidate.verify(sig);
+			indip.verify(indip.getPublicKey());
+			return true;
 		}
 		catch (CertificateExpiredException c) {
 			System.out.println("Certificate Expired: " + c.getMessage());
@@ -263,6 +261,10 @@ public class cert {
 		}
 		catch (CertificateNotYetValidException ny) {
 			System.out.println("Certificate Not Valid Yet: " + ny.getMessage());
+			return false;
+		}
+		catch (Exception e) {
+			System.out.println(e + ": " + e.getMessage());
 			return false;
 		}
 	}
@@ -304,6 +306,17 @@ public class cert {
 	
 	/**
 	 * This method is used for the vouching of files by clients and here it will check that
+	 * the certificate is valid and then it will add the certificate to the corresponding alias
+	 * in the keystore of the format
+	 * <filename>-<issuer>-<subject>
+	 * The filename being the filename of course, the issuer being the owner of the file
+	 * or a previous signer.
+	 * The subject is the one whose public key and signature is on the cert.
+	 * A circle of trust is formed by 'linking' the aliases together.
+	 * e.g.
+	 * <Filename>-<A>-<B>
+	 * <Filename>-<B>-<C>
+	 * <Filename>-<C>-<D> and so on...
 	 * @param cert2add
 	 * @param filename
 	 * @param password
@@ -312,15 +325,22 @@ public class cert {
 	 * @throws IOException
 	 * @throws KeyStoreException
 	 */
-	public void addToTheCircleOfLife(X509Certificate cert2add, String filename, String password) throws NoSuchAlgorithmException, CertificateException, IOException, KeyStoreException {
+	public void addToTheCircleOfLife(X509Certificate cert2add, String filename, String password) 
+	throws NoSuchAlgorithmException, CertificateException, IOException, KeyStoreException {
 		KeyStore ks = KeyStore.getInstance("JKS");
 		char[] pass = password.toCharArray();
 	    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
 	    ks.load(keystore, pass);
-	    
+	    keystore.close();
+	    String alias = filename + "-" + cert2add.getIssuerX500Principal().toString() + "-" + cert2add.getSubjectX500Principal().toString();
+	    ks.setCertificateEntry(alias, cert2add);
+	    FileOutputStream ksstore = new FileOutputStream("KeyStore");
+	    ks.store(ksstore, pass);
+	    ksstore.close();
 	}
 
-	private String getFilenameAlias(String filename, String password, KeyStore ks) throws KeyStoreException, NoSuchAlgorithmException, CertificateException, IOException {
+	private String getFilenameAlias(String filename, String password, KeyStore ks) 
+	throws KeyStoreException, NoSuchAlgorithmException, CertificateException, IOException {
 	    String theOne = null;
 	    Enumeration<String> loa = ks.aliases();
 	    while(loa.hasMoreElements()) {
@@ -389,9 +409,11 @@ public class cert {
 	 * @throws KeyStoreException 
 	 * 
 	 */
-	@SuppressWarnings("unused")
 	public boolean gettingTheDist(int rlength, String password, String filename) 
 	throws NoSuchAlgorithmException, CertificateException, IOException, KeyStoreException {
+		if(rlength == 0) {
+			return true;
+		}
 		KeyStore ks = KeyStore.getInstance("JKS");
 		char[] pass = password.toCharArray();
 	    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
@@ -402,11 +424,38 @@ public class cert {
 	    	return false;
 	    }   
 	    else {
-	        
-			Enumeration<String> es = ks.aliases();
-	    	while(es.hasMoreElements()) {
-	    		int count = 0;
-	    		String check = es.nextElement();
+	    	ArrayList<Integer> counts = new ArrayList<Integer>();
+	    	ArrayList<String> issuers = new ArrayList<String>();
+	    	counts.add(0);
+	    	issuers.add(theOne.split("-")[1]);
+	    	for(int i = 0; i < issuers.size(); i++) {
+	    		if(issuers.get(i) == null) {
+	    			continue;
+	    		}
+	    		boolean issuerfound = false;
+	    		Enumeration<String> es = ks.aliases();
+		    	while(es.hasMoreElements()) {
+		    		String[] check = es.nextElement().split("-");
+		    		if(check.length != 3) {
+		    			continue;
+		    		}
+		    		else if(!issuerfound && check[1].equals(issuers.get(i)) && !check[1].equals(check[2])) {
+		    			int count = counts.get(i) + 1;
+		    			counts.set(i, count);
+		    			issuers.set(i, check[2]);
+		    		}
+		    		else if(issuerfound && check[1].equals(issuers.get(i)) && !check[1].equals(check[2])) {
+		    			int count = counts.get(i);
+		    			counts.add(count);
+		    			issuers.add(check[2]);
+		    		}
+		    	}
+		    	if(counts.get(i) >= rlength) {
+		    		return true;
+		    	}
+		    	if(!issuerfound) {
+		    		issuers.set(i, null);
+		    	}
 	    	}
 	    }
 	    return false;
@@ -444,9 +493,15 @@ throws IOException, KeyStoreException, GeneralSecurityException {
 		    while(s.hasMoreElements()) {
 		    	System.out.println(s.nextElement().toString());
 		    }
+		    FileInputStream fispem = new FileInputStream("oldtrusty.pem");
+		    CertificateFactory cf = CertificateFactory.getInstance("X.509");
+		    X509Certificate cer = (X509Certificate) cf.generateCertificate(fispem);
+		    if(validate(cer)) {
+		    	System.out.println("OLDTRUSTY CERT VALIDATED");
+		    }	
 		}
 		catch (Exception e) {
-			System.out.println(e + "Didn't find Keystore");
+			System.out.println(e);
 		}
 	}
 }
