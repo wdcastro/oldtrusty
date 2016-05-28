@@ -66,6 +66,7 @@ public class ServerThread extends Thread{
 			
 			cert.storeTrustedCert(peercert, password);
 			
+			
 			//create write/read streams
 			BufferedWriter out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
 			BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()), 1024);

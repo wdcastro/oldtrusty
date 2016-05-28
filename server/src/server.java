@@ -35,6 +35,7 @@ import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLServerSocketFactory;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 
 public class server {
 	
@@ -66,7 +67,7 @@ public class server {
 			
 			/*TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());*/
 			
-			TrustManager[] trustAllCerts = new TrustManager[] {
+			X509TrustManager[] trustAllCerts = (X509TrustManager[]) new TrustManager[] {
 					new TrustManager() {
 		                public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) {
 		                }
@@ -110,7 +111,7 @@ public class server {
 			SSLServerSocketFactory ssf = (SSLServerSocketFactory) context.getServerSocketFactory();
 			SSLServerSocket ss= (SSLServerSocket) ssf.createServerSocket(Integer.parseInt(args[0]));
 			
-			ss.setNeedClientAuth(false);
+			//ss.setNeedClientAuth(false);
 			System.out.println("server socket created "+ args[0]);
 			
 			ss.setEnabledProtocols(new String[]{"SSLv3"});
