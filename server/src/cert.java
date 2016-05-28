@@ -4,6 +4,7 @@ import java.security.spec.InvalidKeySpecException;
 import java.security.spec.InvalidParameterSpecException;
 import java.security.spec.KeySpec;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Enumeration;
 
 import sun.misc.BASE64Encoder;
@@ -404,13 +405,11 @@ public class cert {
 	 * @param rlength the required diameter for the circle of trust
 	 * @return boolean true = rlength reached false = otherwise
 	 * @throws IOException 
-	 * @throws CertificateException 
-	 * @throws NoSuchAlgorithmException 
-	 * @throws KeyStoreException 
+	 * @throws GeneralSecurityException 
 	 * 
 	 */
 	public boolean gettingTheDist(int rlength, String password, String filename) 
-	throws NoSuchAlgorithmException, CertificateException, IOException, KeyStoreException {
+	throws IOException, GeneralSecurityException {
 		if(rlength == 0) {
 			return true;
 		}
@@ -424,37 +423,115 @@ public class cert {
 	    	return false;
 	    }   
 	    else {
+	    	Enumeration<String> es = ks.aliases();
+	    	ArrayList<String> aliases = Collections.list(es);
+	    	/*
+	    	 * The Arraylists are to keep track of the current circle(s) found
+	    	 * the counts and issuers ArrayList are in sync, issuers[0] refers to count[0].
+	    	 * This is to deal with when an issuer has got two or more certificates
+	    	 * referring to them as issuer and each certificate having a different certificate
+	    	 * I decided to use ArrayLists instead of possible recursion techniques to avoid
+	    	 * exponential performance decreases when adding many different certificates to the 
+	    	 * keystore.
+	    	 * The ArrayList history is also synchronized with counts and issuers, this keeps
+	    	 * track of the split that created the new circle. It does this by keeping the issuer
+	    	 * name. 
+	    	 */
 	    	ArrayList<Integer> counts = new ArrayList<Integer>();
 	    	ArrayList<String> issuers = new ArrayList<String>();
+	    	ArrayList<String> history = new ArrayList<String>();
+	    	//Initialize the ArrayLists each starting with the person who added the file
 	    	counts.add(0);
 	    	issuers.add(theOne.split("-")[1]);
-	    	for(int i = 0; i < issuers.size(); i++) {
+	    	history.add(theOne.split("-")[1]);
+	    	/*
+	    	 * The nullcheck is used to check when all of the values in issuer are null
+	    	 * if the rlength hasn't been reached by this point then the loop will end here
+	    	 * and the method will return false
+	    	 */
+	    	boolean nullcheck = true;
+	    	//Start the counter for the ArrayLists
+	    	int i = 0;
+	    	while(!nullcheck && (i != issuers.size() - 1) && issuers.get(i) != null)  {
+	    		/*
+	    		 * If the issuer is null then a full circle has been found by either
+	    		 * the current "circle" reaching back to client who added the file or 
+	    		 * where the circle split into two (in other words when the issuer was found more than once
+	    		 * inside the enumeration hence adding a new string object to issuers and an int to count)
+	    		 * Hence no need to investigate further so continue on through issuers.
+	    		 */
 	    		if(issuers.get(i) == null) {
+	    			i++;
 	    			continue;
 	    		}
+	    		/*
+	    		 * If it isn't null then more investigation needed, put null check as false 
+	    		 * so the loop will reset by putting i to 0 and nullcheck to true in order to keep going 
+	    		 * until the while loop conditions all are all false or the length has been reached
+	    		 */
+	    		nullcheck = false;
+	    		//The keeps track of if the issuer has been found already
 	    		boolean issuerfound = false;
-	    		Enumeration<String> es = ks.aliases();
-		    	while(es.hasMoreElements()) {
-		    		String[] check = es.nextElement().split("-");
+	    		/*
+	    		 * Iterate through the list of aliases to find issuer
+	    		 */
+		    	for(String alias: aliases) {
+		    		String[] check = alias.split("-");
+		    		//If the check string array isn't of length 3 ignore it
 		    		if(check.length != 3) {
 		    			continue;
 		    		}
+		    		//Given that no other issuer has been found already and we found a new signer update the lists
 		    		else if(!issuerfound && check[1].equals(issuers.get(i)) && !check[1].equals(check[2])) {
-		    			int count = counts.get(i) + 1;
-		    			counts.set(i, count);
-		    			issuers.set(i, check[2]);
+							if(validate((X509Certificate) ks.getCertificate(alias))) {
+								counts.set(i, counts.get(i) + 1);
+								issuers.set(i, check[2]);
+							}
+							else {
+								//Circle broken, certificate invalid
+								issuers.set(i, null);
+							}
 		    		}
+		    		/*
+		    		 * An issuer has been found already so we split the circle, now we know there is more than
+		    		 * one circle of trust associated with this file so in order to deal with this,
+		    		 * a new entry is added to the issuers and count list
+		    		 * TODO add a way to keep history of splits.
+		    		 */
 		    		else if(issuerfound && check[1].equals(issuers.get(i)) && !check[1].equals(check[2])) {
-		    			int count = counts.get(i);
-		    			counts.add(count);
-		    			issuers.add(check[2]);
+		    			if(validate((X509Certificate) ks.getCertificate(alias))) {
+							counts.add(counts.get(i));
+							issuers.add(check[2]);
+							history.add(check[2]);
+						}
+						else {
+							//Circle broken, certificate invalid
+							counts.add(counts.get(i));
+							issuers.add(i, null);
+							history.add(check[2]);
+						}
 		    		}
 		    	}
+		    	/*
+		    	 * After the current loop does the count meet the rlength, if so, return true
+		    	 * Just to be clear, this can be any circle, only one of them needs to meet rlength
+		    	 * in order for this method to return true
+		    	 */
 		    	if(counts.get(i) >= rlength) {
 		    		return true;
 		    	}
+		    	//If the issuer wasn't found at all then, circle complete, put issuer as null
 		    	if(!issuerfound) {
 		    		issuers.set(i, null);
+		    	}
+		    	//Reset the loop if we got to the end and there's still some issuers that aren't null
+		    	if(i == issuers.size() - 1 && !nullcheck) {
+	    			i = 0;
+	    			nullcheck = true;
+	    		}
+		    	//otherwise keep going if not the end
+		    	else {
+		    		i++;
 		    	}
 	    	}
 	    }
@@ -477,15 +554,15 @@ throws IOException, KeyStoreException, GeneralSecurityException {
 		    	System.out.println("You fucked up");
 		    }
 		    keystore.close();
-		    FileInputStream teste = new FileInputStream("Test.txt");
+		    FileInputStream teste = new FileInputStream("test.jpg");
 			byte[] test = new byte[teste.available()];
 			teste.read(test);
 			teste.close();
 			byte[] ttw = encrypt(test, args[0]);
-			FileOutputStream ttwtest = new FileOutputStream("TTW.txt");
+			FileOutputStream ttwtest = new FileOutputStream("TTW.jpg");
 			ttwtest.write(ttw);
 			ttwtest.close();
-			FileOutputStream dtest = new FileOutputStream("DTEST.txt");
+			FileOutputStream dtest = new FileOutputStream("DTEST.jpg");
 			byte[] decryptest = decrypt(ttw, args[0]);
 			dtest.write(decryptest);
 			dtest.close();
