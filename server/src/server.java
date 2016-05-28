@@ -29,12 +29,14 @@ import javax.net.ssl.TrustManagerFactory;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
+import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLServerSocketFactory;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509KeyManager;
 import javax.net.ssl.X509TrustManager;
 
 public class server {
@@ -65,7 +67,6 @@ public class server {
 			context = SSLContext.getInstance("SSLv3");
 			System.out.println("context protocol :" + context.getProtocol());
 			
-			/*TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());*/
 			
 			TrustManager[] trustAllCerts = (TrustManager[]) new TrustManager[] {
 					new TrustManager() {
@@ -76,7 +77,8 @@ public class server {
 		                }
 
 		                public java.security.cert.X509Certificate[] getAcceptedIssuers() {
-		                    return null;
+		                	
+		                    return new X509Certificate[0];
 		                }
 		            }
 		    };
@@ -106,12 +108,12 @@ public class server {
 			System.out.println("Store lists end------------------");
 			//System.out.println("contains noah "+ ks.aliases());
 			//tmf.init(ks);
-			context.init(kmf.getKeyManagers(), null, null);
+			context.init(kmf.getKeyManagers(), trustAllCerts, null);
 			
 			SSLServerSocketFactory ssf = (SSLServerSocketFactory) context.getServerSocketFactory();
 			SSLServerSocket ss= (SSLServerSocket) ssf.createServerSocket(Integer.parseInt(args[0]));
 			
-			//ss.setNeedClientAuth(false);
+			//ss.setNeedClientAuth(true);
 			System.out.println("server socket created "+ args[0]);
 			
 			ss.setEnabledProtocols(new String[]{"SSLv3"});

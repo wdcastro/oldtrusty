@@ -53,22 +53,51 @@ public class ServerThread extends Thread{
 	public void run() {
 		System.out.println("thread running");
 		try{
-
+			
+			
 			Boolean isReading = true;
 			FileManager fm = new FileManager();
-			socket.startHandshake();
-			SSLSession session = socket.getHandshakeSession();
-			Certificate[] certchain = session.getPeerCertificates();
-			X509Certificate peercert = (X509Certificate) certchain[0];
-			BufferedWriter out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
-			BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()), 1024);
-			if(cert.validate(peercert)){
-				cert.storeTrustedCert(peercert, password);
-				//create write/read streams				
+			String[] commandsarray = new String[4];
+			byte[] k = "k".getBytes();
+			byte[] x = "x".getBytes();
+
+			BufferedInputStream in = new BufferedInputStream(socket.getInputStream(), 1024);
+
+			BufferedOutputStream out = new BufferedOutputStream(socket.getOutputStream(), 1024);
+			
+			
+			System.out.println("receiving cert");
+			
+			Boolean certreceived = false;
+			while(!certreceived){
+				System.out.println("writing not completed looping");
+				byte[] data = new byte[1024];
+				int len = in.read(data, 0, 1024);
+				if(len < 1024){
+					System.out.println("writing completion detected");
+					certreceived = true;
+				}
+				fm.writeToFile("tempcert", data, len);
+				for(int j = 0; j < data.length; j++){
+					System.out.print(data[j]);
+				}
+			}
+			System.out.println("cert received");
+			CertificateFactory handshakecf = CertificateFactory.getInstance("X.509");
+			Certificate handshakecert = handshakecf.generateCertificate(new FileInputStream(fm.getFileFile("tempcert")));
+			X509Certificate x509handshakecert = (X509Certificate) handshakecert;
+
+			if(cert.validate(x509handshakecert)){
+				System.out.println("validation successful");
+				cert.storeTrustedCert(x509handshakecert, password);
+				out.write(k, 0, 1);
+				out.flush();	
 			} else {
+				System.out.println("validation failed");
 				socket.close();
 				isReading = false;
 			}
+			
 			
 
 			while(isReading){
@@ -83,36 +112,37 @@ public class ServerThread extends Thread{
 				isReading = false;*/
 			
 				System.out.println("state is: "+ state);
-				String[] commandsarray = new String[4];
+				
 				
 				
 				if(state == -1){//waiting for command
 					System.out.println("state is: "+ state);
 					//int i = in.read();
-					char[] cbuf = new char[196];
-					int len = in.read(cbuf, 0, 0);
-					for(int j = 0; j< len; j++){
-						System.out.print(cbuf[j]);
-					}
-					String commands = String.valueOf(cbuf);
-					commandsarray = commands.split("");
+					byte[] readbytes = new byte[196];
+					int len = in.read(readbytes, 0, 196);
+					System.out.println("length is "+ len);
+					System.out.println();
+					String commands = new String(readbytes,0, len, StandardCharsets.UTF_8);
+					System.out.println("commands is: "+ commands);
+					commandsarray = commands.split(",");
 					
-					for(int j = 0; j< len; j++){
-						System.out.print(commandsarray[j].toString());
+					for(int i = 0; i< commandsarray.length; i++){
+						System.out.println(i+ ":" +commandsarray[i].toString());
 					}
 					
 					System.out.println("read mode");
+					isReading = false;
 					
 					if(commandsarray[0].equals("0")){//add
 						System.out.println("0 confirmed");
 						if(fm.listDir().contains(commandsarray[1])){
-							out.write("x");
+							out.write(x, 0, 1);
 							out.flush();
 							isReading = false;
 							break;
 						}
 						state = 0;
-						out.write("k");
+						out.write(k, 0, 1);
 						out.flush();
 						System.out.println("state is: "+ state);
 						
@@ -120,38 +150,42 @@ public class ServerThread extends Thread{
 					
 					if(commandsarray[0].equals("1")){//fetch
 						if(!fm.doesFileExist(commandsarray[1])){
-							//does file exist
-							out.write("x");
+							//file doesnt exist
+							System.out.println("file doesnt exists");
+							out.write(x, 0, 1);
 							out.flush();
 							isReading = false;
 							break;
-						} else if(!commandsarray[2].equals("(null)") && !cert.gettingTheDist(Integer.parseInt(commandsarray[2]), password, commandsarray[1])){ 
+						} else if(!commandsarray[2].toString().equals("(null)") && !cert.gettingTheDist(Integer.parseInt(commandsarray[2]), password, commandsarray[1])){ 
 							//file exists but does it meet length
-							out.write("x");
+							System.out.println("2 not null checking length");
+							out.write(x, 0, 1);
 							out.flush();
 							isReading = false;
 							break;
-						} else if(!cert.wantedDOA(commandsarray[1], commandsarray[3], password)) {
+						} else if(!commandsarray[3].toString().equals("(null)") && !cert.wantedDOA(commandsarray[1], commandsarray[3], password)) {
+							System.out.println("3 not null checking user");
+							System.out.println(commandsarray[3].toString());
 							//file exists and meets length but does it include required name
-							out.write("x");
+							out.write(x, 0, 1);
 							out.flush();
 							isReading = false;
 							break;							
 						} else {
 							System.out.println("1 confirmed");
 							state = 1;
-							out.write("k");
+							out.write(k, 0, 1);
 							out.flush();
+							System.out.println("acknowledgement sent k 1");
 						}
 					}
 					
 					if(commandsarray[0].equals("2")){//list
-						ArrayList<String> directories = fm.listDir();
-						String directorylisting = "";
-						for(int i = 0; i< directories.size(); i++){
-							directorylisting += directories.get(i);
-							directorylisting += ",";
-						}
+						System.out.println("2 confirmed");
+						state = 2;
+						out.write(k, 0, 1);
+						out.flush();
+						
 					}
 						
 					}
@@ -159,16 +193,23 @@ public class ServerThread extends Thread{
 						if(commandsarray[0].equals("3")){//vouch
 							if(!fm.doesFileExist(commandsarray[1])){
 								//does file exist
-								out.write("x");
+								out.write(x, 0, 1);
 								out.flush();
 								isReading = false;
 								break;	
 							} else {
-								out.write("k");
+								out.write(k, 0, 1);
 								out.flush();
 								state = 3;
 							}
 				}
+						
+						if(!commandsarray[0].equals("0") && !commandsarray[0].equals("1") && !commandsarray[0].equals("2") && !commandsarray[0].equals("3")){
+							socket.close();
+							isReading = false;
+							System.out.println("command not recognised");
+							System.out.println(commandsarray[0].toString());
+						}
 				
 				
 				
@@ -178,12 +219,11 @@ public class ServerThread extends Thread{
 				
 				if(state == 0){//waiting for file
 					System.out.println("state 0 start");
-					BufferedInputStream bytestream = new BufferedInputStream(socket.getInputStream(), 1024);
 					Boolean writingCompleted = false;
 					while(!writingCompleted){
 						System.out.println("writing not completed looping");
 						byte[] data = new byte[1024];
-						int len = bytestream.read(data, 0, 1024);
+						int len = in.read(data, 0, 1024);
 						if(len < 1024){
 							System.out.println("writing completion detected");
 							writingCompleted = true;
@@ -211,14 +251,14 @@ public class ServerThread extends Thread{
 					System.out.println("state 1 start");
 					FileManager abcd = new FileManager();
 					
-					BufferedOutputStream bytestream = new BufferedOutputStream(socket.getOutputStream(), 1024);
 					//BufferedWriter bytestream = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()),1024);
-					
-					byte[] data = cert.decrypt(abcd.openFileAsByte(commandsarray[1]),password);
+					System.out.println("starting decrypt");
+					//byte[] data = cert.decrypt(abcd.openFileAsByte(commandsarray[1]),password);
+					byte[] data = abcd.openFileAsByte(commandsarray[1]);
 					System.out.println("data length is " + data.length);
 					System.out.println("writing");
-					bytestream.write(data, 0, data.length);
-					bytestream.flush();
+					out.write(data, 0, data.length);
+					out.flush();
 					System.out.println("writing completed");
 					isReading = false;
 				}
@@ -226,6 +266,29 @@ public class ServerThread extends Thread{
 				//code for fetching file
 				//
 				//ends here
+				
+				//code for listing dir
+				//
+				//starts here
+				
+				if(state == 2){
+					ArrayList<String> directories = fm.listDir();
+					byte[] bytestosend = new byte[128];
+					for(int i = 0; i< directories.size(); i++){
+						bytestosend = (directories.get(i)+"%n").getBytes();
+						System.out.println(i+": "+ directories.get(i));
+						
+						/*for(int bytesremain = 128 - bytestosend.length; bytesremain < 128; bytesremain++){
+							bytestosend[bytesremain] = (Byte) null;
+						}
+						*/
+						out.write(bytestosend, 0, bytestosend.length);
+						out.flush();
+					}
+					
+					isReading = false;
+					
+				}
 				
 				//code for vouching files
 				//
@@ -254,19 +317,25 @@ public class ServerThread extends Thread{
 					cert.addToTheCircleOfLife(x509cert, commandsarray[1], password);
 					fm.deleteFile(commandsarray[2]);
 					isReading = false;
-				}
 					
-
-		 }
+				}
+				
+				//code for vouching files
+				//
+				//ends here
 				
 
-		out.flush();
-		out.close();
-		socket.close();
+		 }
+			
+			out.flush();
+			out.close();
+			socket.close();
 
 		} catch(Exception e){
 			System.out.println(e);
 		}
+		
+		
 		
 	}
 	

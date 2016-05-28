@@ -39,20 +39,6 @@ public class FileManager {
 		
 	}
 	
-	public byte[] readFile(String name){
-		Path file = filedir.resolve(name);
-		try {
-			byte[] data = Files.readAllBytes(file);
-			return data;
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		return null;
-
-		
-	}
-	
 	public File getFileFile(String name){
 		Path file = filedir.resolve(name);
 		return file.toFile();
