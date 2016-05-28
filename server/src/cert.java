@@ -324,7 +324,7 @@ public class cert {
 	 * @throws IOException
 	 * @throws GeneralSecurityException 
 	 */
-	public void addToTheCircleOfLife(X509Certificate cert2add, String filename, String password) 
+	public static void addToTheCircleOfLife(X509Certificate cert2add, String filename, String password) 
 	throws IOException, GeneralSecurityException {
 		if(validate(cert2add)) {
 			KeyStore ks = KeyStore.getInstance("JKS");
@@ -354,7 +354,7 @@ public class cert {
 	 * @throws CertificateException
 	 * @throws IOException
 	 */
-	private String getFilenameAlias(String filename, String password, KeyStore ks) 
+	private static String getFilenameAlias(String filename, String password, KeyStore ks) 
 	throws KeyStoreException, NoSuchAlgorithmException, CertificateException, IOException {
 	    String theOne = null;
 	    Enumeration<String> loa = ks.aliases();
@@ -422,7 +422,7 @@ public class cert {
 	 * @throws GeneralSecurityException 
 	 * 
 	 */
-	public boolean gettingTheDist(int rlength, String password, String filename) 
+	public static boolean gettingTheDist(int rlength, String password, String filename) 
 	throws IOException, GeneralSecurityException {
 		if(rlength == 0) {
 			return true;

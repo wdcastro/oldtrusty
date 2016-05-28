@@ -53,15 +53,30 @@ public class FileManager {
 		
 	}
 	
+	public File getFileFile(String name){
+		Path file = filedir.resolve(name);
+		return file.toFile();
+	}
+	
 	public boolean doesFileExist(String name){
 		try{
-		Path file = filedir.resolve(name);
+			Path file = filedir.resolve(name);
 		} catch (InvalidPathException e){
 			return false;
 		}
 		
 		return true;
 		
+	}
+	
+	public void deleteFile(String name){
+		try{
+			Path file = filedir.resolve(name);
+			Files.delete(file);
+		} catch (Exception e){
+			System.out.println("cannot delete");
+			System.out.println(e);
+		}
 	}
 	
 	public void writeToFile(String name, byte[] bytearray, int len){
