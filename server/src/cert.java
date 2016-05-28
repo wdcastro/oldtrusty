@@ -534,16 +534,8 @@ public class cert {
 		    	if(counts.get(i) >= rlength) {
 		    		return true;
 		    	}
-		    	/*
-		    	 * If the issuer wasn't found at all then, circle complete, put issuer as null
-		    	 * If the issuer has reached the original person who added the folder, circle complete
-		    	 * If the issuer has reached the point where it previously split, circle complete
-		    	 * I decided the end the circles here instead of chaining multiple circles together
-		    	 * for one particular reason, there was no way to guarantee that when linking two circles
-		    	 * together that everyone actually vouches for each other, hence the decision to end it
-		    	 * at the issuer who added the file or at the part when it split.  
-		    	 */
-		    	if(!issuerfound || issuers.get(i) == history.get(0) || issuers.get(i) == history.get(i)) {
+		    	//If the issuer wasn't found at all then, circle complete, put issuer as null
+		    	if(!issuerfound) {
 		    		issuers.set(i, null);
 		    	}
 		    	//Reset the loop if we got to the end and there's still some issuers that aren't null
