@@ -110,7 +110,7 @@ public class server {
 			SSLServerSocketFactory ssf = (SSLServerSocketFactory) context.getServerSocketFactory();
 			SSLServerSocket ss= (SSLServerSocket) ssf.createServerSocket(Integer.parseInt(args[0]));
 			
-			ss.setNeedClientAuth(true);
+			ss.setNeedClientAuth(false);
 			System.out.println("server socket created "+ args[0]);
 			
 			ss.setEnabledProtocols(new String[]{"SSLv3"});
