@@ -55,26 +55,21 @@ public class ServerThread extends Thread{
 		try{
 
 			Boolean isReading = true;
-			socket.startHandshake();
+			FileManager fm = new FileManager();
 			SSLSession session = socket.getSession();
 			Certificate[] certchain = session.getPeerCertificates();
 			X509Certificate peercert = (X509Certificate) certchain[0];
-			if(!cert.validate(peercert)){
+			BufferedWriter out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+			BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()), 1024);
+			if(cert.validate(peercert)){
+				cert.storeTrustedCert(peercert, password);
+				//create write/read streams				
+			} else {
 				socket.close();
 				isReading = false;
 			}
 			
-			cert.storeTrustedCert(peercert, password);
-			
-			
-			//create write/read streams
-			BufferedWriter out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
-			BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()), 1024);
-			
-			int loopcount = 0;
-			FileManager fm = new FileManager();
-			
-			
+
 			while(isReading){
 				/*
 				System.out.println(Character.toString((char) in.read()));
@@ -85,11 +80,7 @@ public class ServerThread extends Thread{
 				out.write("asdfsadfsafds", 0 , 13);
 				out.flush();
 				isReading = false;*/
-				
-				
 			
-				loopcount++;
-				System.out.println("loopcount: "+loopcount);				
 				System.out.println("state is: "+ state);
 				String[] commandsarray = new String[4];
 				

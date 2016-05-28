@@ -67,7 +67,7 @@ public class server {
 			
 			/*TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());*/
 			
-			X509TrustManager[] trustAllCerts = (X509TrustManager[]) new TrustManager[] {
+			TrustManager[] trustAllCerts = (TrustManager[]) new TrustManager[] {
 					new TrustManager() {
 		                public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) {
 		                }
