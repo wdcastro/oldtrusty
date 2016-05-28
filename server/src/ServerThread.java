@@ -56,6 +56,7 @@ public class ServerThread extends Thread{
 
 			Boolean isReading = true;
 			FileManager fm = new FileManager();
+			socket.startHandshake();
 			SSLSession session = socket.getSession();
 			Certificate[] certchain = session.getPeerCertificates();
 			X509Certificate peercert = (X509Certificate) certchain[0];

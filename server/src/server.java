@@ -106,7 +106,7 @@ public class server {
 			System.out.println("Store lists end------------------");
 			//System.out.println("contains noah "+ ks.aliases());
 			//tmf.init(ks);
-			context.init(kmf.getKeyManagers(), trustAllCerts, null);
+			context.init(kmf.getKeyManagers(), null, null);
 			
 			SSLServerSocketFactory ssf = (SSLServerSocketFactory) context.getServerSocketFactory();
 			SSLServerSocket ss= (SSLServerSocket) ssf.createServerSocket(Integer.parseInt(args[0]));
