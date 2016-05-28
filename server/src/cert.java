@@ -321,25 +321,39 @@ public class cert {
 	 * @param cert2add
 	 * @param filename
 	 * @param password
+	 * @throws IOException
+	 * @throws GeneralSecurityException 
+	 */
+	public void addToTheCircleOfLife(X509Certificate cert2add, String filename, String password) 
+	throws IOException, GeneralSecurityException {
+		if(validate(cert2add)) {
+			KeyStore ks = KeyStore.getInstance("JKS");
+			char[] pass = password.toCharArray();
+		    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
+		    ks.load(keystore, pass);
+		    keystore.close();
+		    String alias = filename + "-" + cert2add.getIssuerX500Principal().toString() + "-" + cert2add.getSubjectX500Principal().toString();
+		    ks.setCertificateEntry(alias, cert2add);
+		    FileOutputStream ksstore = new FileOutputStream("KeyStore");
+		    ks.store(ksstore, pass);
+		    ksstore.close();
+		}
+		else {
+			System.out.println("Validate Method return false, Certificate Invalid");
+		}
+	}
+
+	/**
+	 * 
+	 * @param filename
+	 * @param password
+	 * @param ks
+	 * @return theOne A string which is the name for the 
+	 * @throws KeyStoreException
 	 * @throws NoSuchAlgorithmException
 	 * @throws CertificateException
 	 * @throws IOException
-	 * @throws KeyStoreException
 	 */
-	public void addToTheCircleOfLife(X509Certificate cert2add, String filename, String password) 
-	throws NoSuchAlgorithmException, CertificateException, IOException, KeyStoreException {
-		KeyStore ks = KeyStore.getInstance("JKS");
-		char[] pass = password.toCharArray();
-	    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
-	    ks.load(keystore, pass);
-	    keystore.close();
-	    String alias = filename + "-" + cert2add.getIssuerX500Principal().toString() + "-" + cert2add.getSubjectX500Principal().toString();
-	    ks.setCertificateEntry(alias, cert2add);
-	    FileOutputStream ksstore = new FileOutputStream("KeyStore");
-	    ks.store(ksstore, pass);
-	    ksstore.close();
-	}
-
 	private String getFilenameAlias(String filename, String password, KeyStore ks) 
 	throws KeyStoreException, NoSuchAlgorithmException, CertificateException, IOException {
 	    String theOne = null;
@@ -520,8 +534,16 @@ public class cert {
 		    	if(counts.get(i) >= rlength) {
 		    		return true;
 		    	}
-		    	//If the issuer wasn't found at all then, circle complete, put issuer as null
-		    	if(!issuerfound) {
+		    	/*
+		    	 * If the issuer wasn't found at all then, circle complete, put issuer as null
+		    	 * If the issuer has reached the original person who added the folder, circle complete
+		    	 * If the issuer has reached the point where it previously split, circle complete
+		    	 * I decided the end the circles here instead of chaining multiple circles together
+		    	 * for one particular reason, there was no way to guarantee that when linking two circles
+		    	 * together that everyone actually vouches for each other, hence the decision to end it
+		    	 * at the issuer who added the file or at the part when it split.  
+		    	 */
+		    	if(!issuerfound || issuers.get(i) == history.get(0) || issuers.get(i) == history.get(i)) {
 		    		issuers.set(i, null);
 		    	}
 		    	//Reset the loop if we got to the end and there's still some issuers that aren't null
