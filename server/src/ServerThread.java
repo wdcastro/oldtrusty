@@ -151,10 +151,12 @@ public class ServerThread extends Thread{
 								isReading = false;
 								break;
 							}
+							if(cert.checkTheAdder(socket.getSession().getPeerHost())){
 							out.write(x, 0, 1);
 							out.flush();
 							isReading = false;
 							break;
+							}
 						}
 						state = 0;
 						out.write(k, 0, 1);

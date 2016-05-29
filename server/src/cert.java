@@ -252,15 +252,18 @@ public class cert {
 			 * if the date (and time) is not within these dates (and times), then the
 			 * checkValidity will throw an exception
 			 */
+<<<<<<< HEAD
 			System.out.println("validate reached");
 			System.out.println(indip+" "+signer+" "+ks);
 			X509Certificate signerCert = (X509Certificate) ks.getCertificate(signer);
 			System.out.println("signerCert is: "+ signerCert);
+=======
+>>>>>>> d5352c20ffbdc0db1a90bd6114eda1d88e5d78c4
 			if(indip.getIssuerX500Principal().equals(indip.getSubjectX500Principal())) {
 				System.out.println("if conditions met validate");
 				System.out.println("signercert pubkey is: " +signerCert.getPublicKey());
 				indip.checkValidity();
-				indip.verify(signerCert.getPublicKey());
+				indip.verify(indip.getPublicKey());
 				return true;
 			}
 			else {
@@ -492,28 +495,13 @@ public class cert {
 	    	 * and the method will return false
 	    	 */
 	    	//Start the counter for the ArrayLists
+	    	String starter = history.get(0);
 	    	int iteration = 0;
 	    	for(int i = 0; i < issuers.size();)  {
 	    		System.out.println("New iteration: " + iteration);
 	    		System.out.println("issuers/counts index: " + i);
 	    		System.out.println("Looking for issuer: " + issuers.get(i));
 	    		System.out.println("Count: "+ counts.get(i) + "\n");
-	    		/*
-	    		 * If the issuer is null then a full circle has been found by either
-	    		 * the current "circle" reaching back to client who added the file or 
-	    		 * where the circle split into two (in other words when the issuer was found more than once
-	    		 * inside the enumeration hence adding a new string object to issuers and an int to count)
-	    		 * Hence no need to investigate further so continue on through issuers.
-	    		 */
-	    		if(issuers.get(i) == null) {
-	    			System.out.println("Found current one to be null continue on\n");
-	    			continue;
-	    		}
-	    		/*
-	    		 * If it isn't null then more investigation needed, put null check as false 
-	    		 * so the loop will reset by putting i to 0 and nullcheck to true in order to keep going 
-	    		 * until the while loop conditions all are all false or the length has been reached
-	    		 */
 	    		//The keeps track of if the issuer has been found already
 	    		boolean issuerfound = false;
 	    		String issuer = issuers.get(i);
@@ -526,17 +514,20 @@ public class cert {
 		    		if(check.length == 3) {
 			    		//Given that no other issuer has been found already and we found a new signer update the lists
 			    		if(!issuerfound && check[1].equals(issuer) && !check[1].equals(check[2])) {
-								if(validate((X509Certificate) ks.getCertificate(alias), check[2], ks)) {
+								//if(validate((X509Certificate) ks.getCertificate(alias), check[2], ks)) {
 									issuerfound = true;
 									counts.set(i, counts.get(i) + 1);
 									issuers.set(i, check[2]);
-								}
-								else {
+									if(issuers.get(i).equals(starter) && issuers.get(i).equals(history.get(i))) {
+										issuers.set(i, null);
+									}
+								//}
+								/*else {
 									//Circle broken, certificate invalid
 									System.out.println("Issuer Not Found Before, Certificate invalid");
 									issuerfound = true;
 									issuers.set(i, null);
-								}
+								}*/
 			    		}
 			    		/*
 			    		 * An issuer has been found already so we split the circle, now we know there is more than
@@ -544,18 +535,21 @@ public class cert {
 			    		 * a new entry is added to the issuers and count list.
 			    		 */
 			    		else if(issuerfound && check[1].equals(issuer) && !check[1].equals(check[2])) {
-			    			if(validate((X509Certificate) ks.getCertificate(alias), check[2], ks)) {
+			    			//if(validate((X509Certificate) ks.getCertificate(alias), check[2], ks)) {
 								counts.add(counts.get(i));
 								issuers.add(check[2]);
 								history.add(check[2]);
-							}
-							else {
+								if(issuers.get(i).equals(starter) && issuers.get(i).equals(history.get(i))) {
+									issuers.set(i, null);
+								}
+							//}
+							/*else {
 								//Circle broken, certificate invalid
 								System.out.println("Issuer Found Before, Certificate invalid");
 								counts.add(counts.get(i));
 								issuers.add(i, null);
 								history.add(check[2]);
-							}
+							}*/
 			    		}
 		    		}
 		    	}
@@ -576,11 +570,12 @@ public class cert {
 		    	 * together that everyone actually vouches for each other, hence the decision to end it
 			     * at the issuer who added the file or at the part when it split.  
 			   	 */
-			   	if(!issuerfound || issuers.get(i) == history.get(0) || issuers.get(i) == history.get(i)) {
+			   	if(!issuerfound || issuers.get(i) == history.get(history.size() - 1) || issuers.get(i) == history.get(i)) {
 			   		issuers.set(i, null);
 			   	}
 		    	//Reset the loop if we got to the end and there's still some issuers that aren't null
 			   	if(i == issuers.size() - 1) {
+			   		System.out.println("Got to the end");
 			   		boolean nullcheck = true;
 				   	for(String nully: issuers) {
 				   		if(nully != null) {
@@ -666,6 +661,7 @@ public class cert {
 			dtest.close();
 			*/
 
+		    
 		    FileInputStream Bpem = new FileInputStream("B.pem");
 		    CertificateFactory Bcf = CertificateFactory.getInstance("X.509");
 		    X509Certificate Bcert = (X509Certificate) Bcf.generateCertificate(Bpem);
@@ -682,6 +678,7 @@ public class cert {
 		    if(ks.containsAlias(Ccert.getIssuerX500Principal().toString())) {
 		    	System.out.println("C cert added");
 		    }
+		    
 		    FileInputStream fispem = new FileInputStream("AB.pem");
 		    CertificateFactory cf = CertificateFactory.getInstance("X.509");
 		    X509Certificate cert = (X509Certificate) cf.generateCertificate(fispem);
@@ -692,7 +689,7 @@ public class cert {
 		    X509Certificate BCcert = (X509Certificate) BCcf.generateCertificate(BCfispem);
 		    BCfispem.close();
 		    System.out.println("GOT BC");
-		    if(validate(cert, Bcert.getIssuerX500Principal().toString(), ks)) {
+		    if(validate(cert, cert.getSubjectX500Principal().toString(), ks)) {
 		    	System.out.println("AB Certificate Validated");
 		    }
 		    if(validate(BCcert, Ccert.getIssuerX500Principal().toString(), ks)) {
@@ -704,19 +701,30 @@ public class cert {
 			 * Getting the distance checking, here Ill just put certs that are valid
 			 * since it uses only the aliases. I only need the certs to be valid for testing.
 			 */
-		    //First Circle nice and Linear! (PASS: FOUND LENGTH OF 3)
-			ks.setCertificateEntry("Fake-A-A", cert);
-			ks.setCertificateEntry("Fake-A-B", cert);//1
-			ks.setCertificateEntry("Fake-B-C", cert);//2
-			ks.setCertificateEntry("Fake-C-D", cert);//3
-			//Create another Circle with shorter length than Linear (PASS: FOUND LENGTH OF 3)
-			ks.setCertificateEntry("Fake-B-E", cert);//2
-			/*Create another Circle with longer length than Linear 
-			ks.setCertificateEntry("Fake-B-H", cert);//2
-			ks.setCertificateEntry("Fake-H-I", cert);//3
-			ks.setCertificateEntry("Fake-I-J", cert);//4
-			ks.setCertificateEntry("Fake-J-K", cert);//5
-			ks.setCertificateEntry("Fake-K-M", cert);//6
+		    // #1 First Circle nice and Linear! (PASS: FOUND LENGTH OF 3)
+				ks.setCertificateEntry("Fake-A-A", cert);
+				ks.setCertificateEntry("Fake-A-B", cert);//1
+				ks.setCertificateEntry("Fake-B-C", cert);//2
+				ks.setCertificateEntry("Fake-C-D", cert);//3
+				// #2 Create another Circle with equal length than Linear (PASS: FOUND LENGTH OF 3)
+				ks.setCertificateEntry("Fake-B-E", cert);//2
+				ks.setCertificateEntry("Fake-E-F", cert);//3
+				// #3 Create another Circle with longer length than Linear (PASS: FOUND LENGTH OF 6)
+				ks.setCertificateEntry("Fake-B-H", cert);//2
+				ks.setCertificateEntry("Fake-H-I", cert);//3 //#5 9 //#2 7
+				ks.setCertificateEntry("Fake-I-J", cert);//4 //#5 10 //#2 8
+				ks.setCertificateEntry("Fake-J-K", cert);//5 //#5 11 //#2 9
+				ks.setCertificateEntry("Fake-K-M", cert);//6 //#5 12 //#2 10
+				//#4 Create another circle where it should stop  (PASS: FOUND LENGTH OF 7)
+				ks.setCertificateEntry("Fake-D-E", cert);//4
+				ks.setCertificateEntry("Fake-E-F", cert);//5 //#2 3
+				ks.setCertificateEntry("Fake-F-G", cert);//6 //#2 4
+				ks.setCertificateEntry("Fake-G-A", cert);//7 //#2 5
+				// #5 Create another circle inside the closing one with starter in it
+				ks.setCertificateEntry("Fake-G-H", cert);//8 //#2 6 
+				ks.setCertificateEntry("Fake-H-I", cert);//9 //#2 7
+				//It should now continue from H-I up above, should return 12
+				
 			/*
 			Enumeration<String> s = ks.aliases();
 		    while(s.hasMoreElements()) {
@@ -740,8 +748,8 @@ public class cert {
 				System.out.println("Found the Fake-A-A using checkTheAdder");
 			}
 			
-		    int result = gettingTheDist(filename, ks);
-		    System.out.println(result);
+		    //int result = gettingTheDist(filename, ks);
+		    //System.out.println(result);
 		    
 		    
 		}
