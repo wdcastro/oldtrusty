@@ -44,7 +44,6 @@ import javax.net.ssl.X509TrustManager;
 public class server {
 	
 	public static String pass;
-	public static Object readwritemonitor = new Object();
 	public static int nextid = 0;
 	public server(){
 		

@@ -52,6 +52,7 @@ public class ServerThread extends Thread{
 	@Override
 	public void run() {
 		System.out.println("thread running");
+		System.out.println("IP: " + socket.getRemoteSocketAddress());
 		try{
 			
 			
@@ -173,7 +174,7 @@ public class ServerThread extends Thread{
 							out.flush();
 							isReading = false;
 							break;
-						} else if(!commandsarray[2].toString().equals("(null)") && !cert.gettingTheDist(Integer.parseInt(commandsarray[2]), password, commandsarray[1])){ 
+						} else if(!commandsarray[2].toString().equals("(null)") && Integer.parseInt(commandsarray[2])>cert.gettingTheDist(password, commandsarray[1])){ 
 							//file exists but does it meet length
 							System.out.println("2 not null checking length");
 							out.write(x, 0, 1);
@@ -193,7 +194,6 @@ public class ServerThread extends Thread{
 							state = 1;
 							out.write(k, 0, 1);
 							out.flush();
-							System.out.println("acknowledgement sent k 1");
 						}
 					}
 					
@@ -247,12 +247,15 @@ public class ServerThread extends Thread{
 							System.out.println("writing completion detected");
 							writingCompleted = true;
 						}
-						fm.writeToFile(commandsarray[1], cert.encrypt(data, password), len);
-							
+						fm.writeToFile(commandsarray[1], data, data.length);
 						for(int j = 0; j < data.length; j++){
 							System.out.print(data[j]);
 						}
 					}
+
+					byte[] encrypted = cert.encrypt(fm.openFileAsByte((commandsarray[1])), password);
+					fm.writeToFile(commandsarray[1]+"encrypted", encrypted, encrypted.length);
+					fm.deleteFile(commandsarray[1]);
 					isReading = false;
 				}
 				
@@ -268,27 +271,16 @@ public class ServerThread extends Thread{
 				
 				
 				if(state == 1){//sending file
-					System.out.println("state 1 start");
-					FileManager abcd = new FileManager();
-					
-					synchronized (server.readwritemonitor){
-						while(!fm.isReadable(commandsarray[1])){
-							System.out.println("unreadable, waiting");
-							server.readwritemonitor.wait();
-						}
-					}
-					
+					System.out.println("state 1 start");										
 					System.out.println("starting decrypt");
-					System.out.println("password is: " + password);
-					System.out.println("commandsarray is: " + commandsarray[1]);
-					byte[] data = cert.decrypt(abcd.openFileAsByte(commandsarray[1]),password);
+					byte[] read = fm.openFileAsByte(commandsarray[1]+"encrypted");
+					byte[] data = cert.decrypt(read, password);
 					//byte[] data = abcd.openFileAsByte(commandsarray[1]);
 					System.out.println("data length is " + data.length);
 					System.out.println("writing");
 					out.write(data, 0, data.length);
 					out.flush();
 					System.out.println("writing completed");
-					server.readwritemonitor.notifyAll();
 					isReading = false;
 				}
 				
@@ -318,6 +310,10 @@ public class ServerThread extends Thread{
 					isReading = false;
 					
 				}
+				
+				//code for listing dir
+				//
+				//ends here
 				
 				//code for vouching files
 				//
@@ -361,6 +357,7 @@ public class ServerThread extends Thread{
 			out.close();
 			in.close();
 			socket.close();
+			System.out.println("Thread died:" + this.getName());
 
 		} catch(Exception e){
 			System.out.println(e);

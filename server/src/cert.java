@@ -323,7 +323,7 @@ public class cert {
 	 * @throws IOException
 	 * @throws GeneralSecurityException 
 	 */
-	public void addToTheCircleOfLife(X509Certificate cert2add, String filename, String password) 
+	public static void addToTheCircleOfLife(X509Certificate cert2add, String filename, String password) 
 	throws IOException, GeneralSecurityException {
 		//Validate the certificate
 		if(validate(cert2add)) {
