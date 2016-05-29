@@ -236,7 +236,8 @@ public class cert {
 	 * A signature is valid if it can be decrypted using the subject's 
 	 * public key provided in the certificate entry. Once decrypted the Hash calculated
 	 * will be calculated on the header to see if it matches the Hash provided after the decryption.
-	 * All this is done by the verify method provided by Java here. 
+	 * All this is done by the verify method provided by Java and by this awesome guy here
+	 * http://www.jensign.com/JavaScience/IsCertTrusted/IsCertTrusted.java 
 	 * @param indip X509 Certificate to be Validated <i><b>I</b>'m <b>N</b>ot <b>D</b>odgy <b>I</b> <b>P</b>romise</i>
 	 * @param fiscert the original byte array used to create the certificate 
 	 * @throws GeneralSecurityException 
@@ -252,9 +253,40 @@ public class cert {
 			 * checkValidity will throw an exception
 			 */
 			X509Certificate signerCert = (X509Certificate) ks.getCertificate(signer);
-			indip.checkValidity();
-			indip.verify(signerCert.getPublicKey());
-			return true;
+			if(indip.getIssuerX500Principal().equals(indip.getSubjectX500Principal())) {
+				indip.checkValidity();
+				indip.verify(signerCert.getPublicKey());
+				return true;
+			}
+			else {
+				Enumeration<String> en = ks.aliases();
+
+				X509Certificate signingcert = null;
+
+				while (en.hasMoreElements())
+				{
+					X509Certificate storecert = null;
+					String ali = (String)en.nextElement() ;
+					if(ks.isCertificateEntry(ali))
+					 {
+						storecert = (X509Certificate)ks.getCertificate(ali);
+						if( (storecert.getIssuerDN().getName()).equals(indip.getIssuerDN()))
+						{
+						 try{
+							System.out.println("Found matching issuer DN cert in keystore:\r\nChecking signature on cert ...") ;
+							indip.verify(storecert.getPublicKey()) ;
+							System.out.println("Signature verified on certificate") ;
+							signingcert = storecert;
+							break;
+						  }
+						 catch(Exception exc){
+							System.out.println("Failed to verify signature on certificate with matching cert DN");
+						  }				
+						}			
+					}	
+				}
+				return true;
+			}
 		}
 		catch (CertificateExpiredException c) {
 			System.out.println("Certificate Expired: " + c.getMessage());
@@ -495,6 +527,7 @@ public class cert {
 								}
 								else {
 									//Circle broken, certificate invalid
+									System.out.println("Issuer Not Found Before, Certificate invalid");
 									issuerfound = true;
 									issuers.set(i, null);
 								}
@@ -512,6 +545,7 @@ public class cert {
 							}
 							else {
 								//Circle broken, certificate invalid
+								System.out.println("Issuer Found Before, Certificate invalid");
 								counts.add(counts.get(i));
 								issuers.add(i, null);
 								history.add(check[2]);
@@ -630,17 +664,33 @@ public class cert {
 		    CertificateFactory Bcf = CertificateFactory.getInstance("X.509");
 		    X509Certificate Bcert = (X509Certificate) Bcf.generateCertificate(Bpem);
 		    Bpem.close();
+		    FileInputStream Cpem = new FileInputStream("C.pem");
+		    CertificateFactory Ccf = CertificateFactory.getInstance("X.509");
+		    X509Certificate Ccert = (X509Certificate) Ccf.generateCertificate(Cpem);
+		    Cpem.close();
 		    ks.setCertificateEntry(Bcert.getIssuerX500Principal().toString(), Bcert);
+		    ks.setCertificateEntry(Ccert.getIssuerX500Principal().toString(), Ccert);
 		    if(ks.containsAlias(Bcert.getIssuerX500Principal().toString())) {
 		    	System.out.println("B cert added");
+		    }
+		    if(ks.containsAlias(Ccert.getIssuerX500Principal().toString())) {
+		    	System.out.println("C cert added");
 		    }
 		    FileInputStream fispem = new FileInputStream("AB.pem");
 		    CertificateFactory cf = CertificateFactory.getInstance("X.509");
 		    X509Certificate cert = (X509Certificate) cf.generateCertificate(fispem);
 		    fispem.close();
-		    System.out.println(cert);
+		    System.out.println("GOT AC");
+		    FileInputStream BCfispem = new FileInputStream("BC.pem");
+		    CertificateFactory BCcf = CertificateFactory.getInstance("X.509");
+		    X509Certificate BCcert = (X509Certificate) BCcf.generateCertificate(BCfispem);
+		    BCfispem.close();
+		    System.out.println("GOT BC");
 		    if(validate(cert, Bcert.getIssuerX500Principal().toString(), ks)) {
-		    	System.out.println("Server Certificate Validated");
+		    	System.out.println("AB Certificate Validated");
+		    }
+		    if(validate(BCcert, Ccert.getIssuerX500Principal().toString(), ks)) {
+		    	System.out.println("BC Certificate Validated");
 		    }
 		    
 			
@@ -655,13 +705,12 @@ public class cert {
 			ks.setCertificateEntry("Fake-C-D", cert);//3
 			//Create another Circle with shorter length than Linear (PASS: FOUND LENGTH OF 3)
 			ks.setCertificateEntry("Fake-B-E", cert);//2
-			//Create another Circle with longer length than Linear 
+			/*Create another Circle with longer length than Linear 
 			ks.setCertificateEntry("Fake-B-H", cert);//2
 			ks.setCertificateEntry("Fake-H-I", cert);//3
 			ks.setCertificateEntry("Fake-I-J", cert);//4
 			ks.setCertificateEntry("Fake-J-K", cert);//5
 			ks.setCertificateEntry("Fake-K-M", cert);//6
-			//Create another Circle with longer length than linear
 			/*
 			Enumeration<String> s = ks.aliases();
 		    while(s.hasMoreElements()) {
@@ -685,8 +734,8 @@ public class cert {
 				System.out.println("Found the Fake-A-A using checkTheAdder");
 			}
 			
-		    //int result = gettingTheDist(filename, ks);
-		    //System.out.println(result);
+		    int result = gettingTheDist(filename, ks);
+		    System.out.println(result);
 		    
 		    
 		}
