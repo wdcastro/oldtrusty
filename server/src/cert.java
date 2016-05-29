@@ -1,3 +1,4 @@
+import java.io.*;
 import java.security.*;
 import java.security.cert.*;
 import java.security.spec.InvalidKeySpecException;
@@ -6,8 +7,7 @@ import java.security.spec.KeySpec;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
-
-import sun.misc.BASE64Encoder;
+import sun.misc.*;
 import sun.security.provider.X509Factory;
 import sun.security.tools.keytool.CertAndKeyGen;
 import sun.security.x509.*;
@@ -16,7 +16,6 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
-import java.io.*;
 
 /**
  * @author Joel-Dunstan - 21318856
@@ -265,7 +264,7 @@ public class cert {
 			return false;
 		}
 		catch (Exception e) {
-			System.out.println(e + ": " + e.getMessage());
+			System.out.println(e);
 			return false;
 		}
 	}
@@ -324,16 +323,21 @@ public class cert {
 	 * @throws IOException
 	 * @throws GeneralSecurityException 
 	 */
-	public static void addToTheCircleOfLife(X509Certificate cert2add, String filename, String password) 
+	public void addToTheCircleOfLife(X509Certificate cert2add, String filename, String password) 
 	throws IOException, GeneralSecurityException {
+		//Validate the certificate
 		if(validate(cert2add)) {
+			//Load the Keystore
 			KeyStore ks = KeyStore.getInstance("JKS");
 			char[] pass = password.toCharArray();
 		    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
 		    ks.load(keystore, pass);
 		    keystore.close();
+		    //Create the string which will be the alias with format above
 		    String alias = filename + "-" + cert2add.getIssuerX500Principal().toString() + "-" + cert2add.getSubjectX500Principal().toString();
+		    //Add the entry
 		    ks.setCertificateEntry(alias, cert2add);
+		    //Save the KeyStore
 		    FileOutputStream ksstore = new FileOutputStream("KeyStore");
 		    ks.store(ksstore, pass);
 		    ksstore.close();
@@ -344,7 +348,9 @@ public class cert {
 	}
 
 	/**
-	 * 
+	 * Gets the first vouch for the file which should be by the person who added the file
+	 * in the first place with say the person adding file is called Steve, then the Alias will be
+	 * <Filename>-<Steve>-<Steve> for example.
 	 * @param filename
 	 * @param password
 	 * @param ks
@@ -354,19 +360,19 @@ public class cert {
 	 * @throws CertificateException
 	 * @throws IOException
 	 */
-	private static String getFilenameAlias(String filename, String password, KeyStore ks) 
+	private static String getFilenameAlias(String filename, KeyStore ks) 
 	throws KeyStoreException, NoSuchAlgorithmException, CertificateException, IOException {
 	    String theOne = null;
 	    Enumeration<String> loa = ks.aliases();
 	    while(loa.hasMoreElements()) {
-	    	String c = loa.nextElement().toString();
-	    	String[] splitc = c.split("-");
-	    	if(splitc.length == 3) {
-	    		if(c != null && splitc[0].equals(filename) && splitc[1].equals(splitc[2])) {
-	    			theOne = c;
-	    			break;
-	    		}
+	    	String ss = loa.nextElement();
+	    	String[] split = ss.split("-");
+		    if(split.length == 3 && split[1].equals(split[2])) {
+				for(String part: split) {
+					System.out.println(part);
+				}
 	    	}
+	    
 	    }
 	    return theOne;
 	}
@@ -393,10 +399,10 @@ public class cert {
 		    keystore.close();
 			Enumeration<String> loa = ks.aliases();
 		    while(loa.hasMoreElements()) {
-		    	String c = loa.nextElement().toString();
+		    	String c = loa.nextElement();
 		    	String[] splitc = c.split("-");
 		    	if(splitc.length == 3) {
-		    		if(c != null && splitc[1].equals(filename) && splitc[2].contains(name)) {
+		    		if(c != null && splitc[0].equals(filename) && splitc[2].contains(name)) {
 		    			found = true;
 		    			break;
 		    		}
@@ -422,21 +428,19 @@ public class cert {
 	 * @throws GeneralSecurityException 
 	 * 
 	 */
-	public static boolean gettingTheDist(int rlength, String password, String filename) 
+	public static int gettingTheDist(String password, String filename) 
 	throws IOException, GeneralSecurityException {
-		if(rlength == 0) {
-			return true;
-		}
 		KeyStore ks = KeyStore.getInstance("JKS");
 		char[] pass = password.toCharArray();
 	    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
 	    ks.load(keystore, pass);
-	    String theOne = getFilenameAlias(filename, password, ks);
+	    String theOne = getFilenameAlias(filename, ks);
 	    if(theOne == null) {
 	    	System.out.println("File does not exist in Keystore");
-	    	return false;
+	    	return -1;
 	    }   
 	    else {
+	    	int maxCount = 0;
 	    	Enumeration<String> es = ks.aliases();
 	    	ArrayList<String> aliases = Collections.list(es);
 	    	/*
@@ -531,11 +535,19 @@ public class cert {
 		    	 * Just to be clear, this can be any circle, only one of them needs to meet rlength
 		    	 * in order for this method to return true
 		    	 */
-		    	if(counts.get(i) >= rlength) {
-		    		return true;
+		    	if(maxCount < counts.get(i)) {
+		    		maxCount = counts.get(i);
 		    	}
-		    	//If the issuer wasn't found at all then, circle complete, put issuer as null
-		    	if(!issuerfound) {
+		    	/*
+		    	 * If the issuer wasn't found at all then, circle complete, put issuer as null
+		    	 * If the issuer has reached the original person who added the folder, circle complete
+		    	 * If the issuer has reached the point where it previously split, circle complete
+		    	 * I decided the end the circles here instead of chaining multiple circles together
+		    	 * for one particular reason, there was no way to guarantee that when linking two circles
+		    	 * together that everyone actually vouches for each other, hence the decision to end it
+		    	 * at the issuer who added the file or at the part when it split.  
+		    	 */
+		    	if(!issuerfound || issuers.get(i) == history.get(0) || issuers.get(i) == history.get(i)) {
 		    		issuers.set(i, null);
 		    	}
 		    	//Reset the loop if we got to the end and there's still some issuers that aren't null
@@ -548,9 +560,45 @@ public class cert {
 		    		i++;
 		    	}
 	    	}
+	    	return maxCount;
 	    }
-	    return false;
 	}
+	
+	/**
+	 * This method checks of the sender of the command for -a is in fact the one who added
+	 * the file in the first place. We will do this by checking the keystore by seeing if there's
+	 * an alias that matches
+	 * <filename>-<sender>-<sender>
+	 * This alias entry should have been added when the file was first added to the server. This will
+	 * ensure that the only person who can overwrite a file added is the server itself and the client 
+	 * who added it.
+	 * @param filename
+	 * @param sender
+	 * @param password
+	 * @return boolean
+	 */
+	 public static boolean checkTheAdder(String filename, String sender, String password) {
+		 try {
+			//Get the KeyStore
+	    	KeyStore ks = KeyStore.getInstance("JKS");
+			char[] pass = password.toCharArray();
+		    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
+		    ks.load(keystore, pass);
+		    //Check if alias exists, return true if it does
+		    if(ks.containsAlias(filename+"-"+sender+"-"+sender)) {
+		    	return true;
+		    }
+		    //If it doesn't, return false (someone else sent it)
+		    else {
+		    	return false;
+		    }
+		 }
+		 //Catch exceptions and return false
+		 catch (Exception e) {
+			 System.out.print(e + ": "+e.getMessage());
+			 return false;
+		 }
+	 }
 
 //Will be commented out later	
 public static void main(String args[]) 
@@ -564,32 +612,64 @@ throws IOException, KeyStoreException, GeneralSecurityException {
 		    if(ks.containsAlias("oldtrusty")) {
 		    	System.out.println("Found the server certificate");
 		    }
-		    else {
-		    	System.out.println("You fucked up");
-		    }
 		    keystore.close();
-		    FileInputStream teste = new FileInputStream("test.jpg");
+		    FileInputStream teste = new FileInputStream("color.png");
 			byte[] test = new byte[teste.available()];
 			teste.read(test);
 			teste.close();
+			
 			byte[] ttw = encrypt(test, args[0]);
-			FileOutputStream ttwtest = new FileOutputStream("TTW.jpg");
+			FileOutputStream ttwtest = new FileOutputStream("ecolor.png");
 			ttwtest.write(ttw);
 			ttwtest.close();
-			FileOutputStream dtest = new FileOutputStream("DTEST.jpg");
-			byte[] decryptest = decrypt(ttw, args[0]);
+			
+			FileInputStream eteste = new FileInputStream("ecolor.png");
+			byte[] etestb = new byte[eteste.available()];
+			eteste.read(etestb);
+			eteste.close();
+			FileOutputStream dtest = new FileOutputStream("d2color.png");
+			byte[] decryptest = decrypt(etestb, args[0]);
 			dtest.write(decryptest);
 			dtest.close();
-		    Enumeration<String> s = ks.aliases();
-		    while(s.hasMoreElements()) {
-		    	System.out.println(s.nextElement().toString());
-		    }
+
+		    
 		    FileInputStream fispem = new FileInputStream("oldtrusty.pem");
 		    CertificateFactory cf = CertificateFactory.getInstance("X.509");
 		    X509Certificate cer = (X509Certificate) cf.generateCertificate(fispem);
 		    if(validate(cer)) {
-		    	System.out.println("OLDTRUSTY CERT VALIDATED");
-		    }	
+		    	System.out.println("Server Certificate Validated");
+		    }
+		    fispem.close();
+		    
+			
+			/*
+			 * Getting the distance checking, here Ill just put certs that are valid
+			 * since it uses only the aliases. I only need the certs to be valid for testing.
+			 */
+			ks.setCertificateEntry("Fake-A-A", cer);
+			ks.setCertificateEntry("Fake-A-B", cer);
+			ks.setCertificateEntry("Fake-B-C", cer);
+			ks.setCertificateEntry("Fake-C-D", cer);
+			Enumeration<String> s = ks.aliases();
+		    while(s.hasMoreElements()) {
+		    	String ss = s.nextElement();
+		    	String[] split = ss.split("-");
+			    if(split.length == 3 && split[1].equals(split[2])) {
+					for(String part: split) {
+						System.out.println(part);
+					}
+		    	}
+		    
+		    }
+			
+			if(checkTheAdder("fake", "a", args[0])) {
+				System.out.println("Found the Fake-A-A");
+			}
+		    System.out.println(getFilenameAlias("Fake", ks));
+		    
+		    int result = gettingTheDist(args[0], "Fake");
+			System.out.println(result);
+		    
 		}
 		catch (Exception e) {
 			System.out.println(e);
