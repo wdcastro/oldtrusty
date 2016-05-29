@@ -147,7 +147,7 @@ public class server {
 				
 				//start new thread on accept
 				System.out.println("listening");
-				new ServerThread((SSLSocket) ss.accept(), args[1]).start();
+				new ServerThread((SSLSocket) ss.accept(), args[1], ks).start();
 			}
 			System.out.println("loop left");
 		} catch (IOException e) {

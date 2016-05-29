@@ -14,6 +14,7 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.KeyStore;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -30,6 +31,7 @@ public class ServerThread extends Thread{
 	private SSLSocket socket = null;
 	private int state = -1;
 	private String password;
+	private KeyStore ks;
 	//-1 waiting for command
 		// 1 waiting for name for add
 		// 2 receiving file for add
@@ -41,11 +43,12 @@ public class ServerThread extends Thread{
 	
 
 	
-	public ServerThread(SSLSocket socket, String password){
+	public ServerThread(SSLSocket socket, String password, KeyStore ks){
 		super("ServerThread");
 		System.out.println("connection established");
 		this.socket = socket;
 		this.password = password;
+		this.ks = ks;
 
 	}
 
@@ -174,14 +177,14 @@ public class ServerThread extends Thread{
 							out.flush();
 							isReading = false;
 							break;
-						} else if(!commandsarray[2].toString().equals("(null)") && Integer.parseInt(commandsarray[2])>cert.gettingTheDist(password, commandsarray[1])){ 
+						} else if(!commandsarray[2].toString().equals("(null)") && Integer.parseInt(commandsarray[2])>cert.gettingTheDist(commandsarray[1], ks)){ 
 							//file exists but does it meet length
 							System.out.println("2 not null checking length");
 							out.write(x, 0, 1);
 							out.flush();
 							isReading = false;
 							break;
-						} else if(!commandsarray[3].toString().equals("(null)") && !cert.wantedDOA(commandsarray[1], commandsarray[3], password)) {
+						} else if(!commandsarray[3].toString().equals("(null)") && !cert.wantedDOA(commandsarray[1], commandsarray[3], ks)) {
 							System.out.println("3 not null checking user");
 							System.out.println(commandsarray[3].toString());
 							//file exists and meets length but does it include required name
@@ -255,6 +258,9 @@ public class ServerThread extends Thread{
 
 					byte[] encrypted = cert.encrypt(fm.openFileAsByte((commandsarray[1])), password);
 					fm.writeToFile(commandsarray[1]+"encrypted", encrypted, encrypted.length);
+					CertificateFactory cf = CertificateFactory.getInstance("X.509");
+					X509Certificate sendercert = (X509Certificate) cf.generateCertificate(new FileInputStream(this.getName()));
+					cert.addToTheCircleOfLife(sendercert, commandsarray[1]+"encrypted", password);
 					fm.deleteFile(commandsarray[1]);
 					isReading = false;
 				}
