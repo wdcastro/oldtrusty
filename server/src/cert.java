@@ -242,7 +242,7 @@ public class cert {
 	 * @throws GeneralSecurityException 
 	 * @throws NoSuchAlgorithmException 
 	 */
-	public static boolean validate(X509Certificate indip) 
+	public static boolean validate(X509Certificate indip, String signer, KeyStore ks) 
 	throws NoSuchAlgorithmException, GeneralSecurityException {
 		try {
 			/*
@@ -251,8 +251,9 @@ public class cert {
 			 * if the date (and time) is not within these dates (and times), then the
 			 * checkValidity will throw an exception
 			 */
+			X509Certificate signerCert = (X509Certificate) ks.getCertificate(signer);
 			indip.checkValidity();
-			indip.verify(indip.getPublicKey());
+			indip.verify(signerCert.getPublicKey());
 			return true;
 		}
 		catch (CertificateExpiredException c) {
@@ -323,22 +324,17 @@ public class cert {
 	 * @throws IOException
 	 * @throws GeneralSecurityException 
 	 */
-	public static void addToTheCircleOfLife(X509Certificate cert2add, String filename, String password) 
+	public static void addToTheCircleOfLife(X509Certificate cert2add, String filename, KeyStore ks, String password) 
 	throws IOException, GeneralSecurityException {
 		//Validate the certificate
-		if(validate(cert2add)) {
-			//Load the Keystore
-			KeyStore ks = KeyStore.getInstance("JKS");
-			char[] pass = password.toCharArray();
-		    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
-		    ks.load(keystore, pass);
-		    keystore.close();
+		if(validate(cert2add, cert2add.getSubjectX500Principal().toString(), ks)) {
 		    //Create the string which will be the alias with format above
 		    String alias = filename + "-" + cert2add.getIssuerX500Principal().toString() + "-" + cert2add.getSubjectX500Principal().toString();
 		    //Add the entry
 		    ks.setCertificateEntry(alias, cert2add);
 		    //Save the KeyStore
 		    FileOutputStream ksstore = new FileOutputStream("KeyStore");
+		    char[] pass = password.toCharArray();
 		    ks.store(ksstore, pass);
 		    ksstore.close();
 		}
@@ -429,6 +425,7 @@ public class cert {
 	    	return -1;
 	    }   
 	    else {
+	    	System.out.println("\nGot through validation\n");
 	    	int maxCount = 0;
 	    	Enumeration<String> es = ks.aliases();
 	    	ArrayList<String> aliases = Collections.list(es);
@@ -456,10 +453,13 @@ public class cert {
 	    	 * if the rlength hasn't been reached by this point then the loop will end here
 	    	 * and the method will return false
 	    	 */
-	    	boolean nullcheck = true;
 	    	//Start the counter for the ArrayLists
-	    	int i = 0;
-	    	while(!nullcheck && (i != issuers.size() - 1) && issuers.get(i) != null)  {
+	    	int iteration = 0;
+	    	for(int i = 0; i < issuers.size();)  {
+	    		System.out.println("New iteration: " + iteration);
+	    		System.out.println("issuers/counts index: " + i);
+	    		System.out.println("Looking for issuer: " + issuers.get(i));
+	    		System.out.println("Count: "+ counts.get(i) + "\n");
 	    		/*
 	    		 * If the issuer is null then a full circle has been found by either
 	    		 * the current "circle" reaching back to client who added the file or 
@@ -468,7 +468,7 @@ public class cert {
 	    		 * Hence no need to investigate further so continue on through issuers.
 	    		 */
 	    		if(issuers.get(i) == null) {
-	    			i++;
+	    			System.out.println("Found current one to be null continue on\n");
 	    			continue;
 	    		}
 	    		/*
@@ -476,81 +476,92 @@ public class cert {
 	    		 * so the loop will reset by putting i to 0 and nullcheck to true in order to keep going 
 	    		 * until the while loop conditions all are all false or the length has been reached
 	    		 */
-	    		nullcheck = false;
 	    		//The keeps track of if the issuer has been found already
 	    		boolean issuerfound = false;
+	    		String issuer = issuers.get(i);
 	    		/*
 	    		 * Iterate through the list of aliases to find issuer
 	    		 */
 		    	for(String alias: aliases) {
 		    		String[] check = alias.split("-");
 		    		//If the check string array isn't of length 3 ignore it
-		    		if(check.length != 3) {
-		    			continue;
-		    		}
-		    		//Given that no other issuer has been found already and we found a new signer update the lists
-		    		else if(!issuerfound && check[1].equals(issuers.get(i)) && !check[1].equals(check[2])) {
-							if(validate((X509Certificate) ks.getCertificate(alias))) {
-								counts.set(i, counts.get(i) + 1);
-								issuers.set(i, check[2]);
+		    		if(check.length == 3) {
+			    		//Given that no other issuer has been found already and we found a new signer update the lists
+			    		if(!issuerfound && check[1].equals(issuer) && !check[1].equals(check[2])) {
+								if(validate((X509Certificate) ks.getCertificate(alias), check[2], ks)) {
+									issuerfound = true;
+									counts.set(i, counts.get(i) + 1);
+									issuers.set(i, check[2]);
+								}
+								else {
+									//Circle broken, certificate invalid
+									issuerfound = true;
+									issuers.set(i, null);
+								}
+			    		}
+			    		/*
+			    		 * An issuer has been found already so we split the circle, now we know there is more than
+			    		 * one circle of trust associated with this file so in order to deal with this,
+			    		 * a new entry is added to the issuers and count list.
+			    		 */
+			    		else if(issuerfound && check[1].equals(issuer) && !check[1].equals(check[2])) {
+			    			if(validate((X509Certificate) ks.getCertificate(alias), check[2], ks)) {
+								counts.add(counts.get(i));
+								issuers.add(check[2]);
+								history.add(check[2]);
 							}
 							else {
 								//Circle broken, certificate invalid
-								issuers.set(i, null);
+								counts.add(counts.get(i));
+								issuers.add(i, null);
+								history.add(check[2]);
 							}
-		    		}
-		    		/*
-		    		 * An issuer has been found already so we split the circle, now we know there is more than
-		    		 * one circle of trust associated with this file so in order to deal with this,
-		    		 * a new entry is added to the issuers and count list
-		    		 * TODO add a way to keep history of splits.
-		    		 */
-		    		else if(issuerfound && check[1].equals(issuers.get(i)) && !check[1].equals(check[2])) {
-		    			if(validate((X509Certificate) ks.getCertificate(alias))) {
-							counts.add(counts.get(i));
-							issuers.add(check[2]);
-							history.add(check[2]);
-						}
-						else {
-							//Circle broken, certificate invalid
-							counts.add(counts.get(i));
-							issuers.add(i, null);
-							history.add(check[2]);
-						}
+			    		}
 		    		}
 		    	}
-		    	/*
-		    	 * After the current loop does the count meet the rlength, if so, return true
-		    	 * Just to be clear, this can be any circle, only one of them needs to meet rlength
-		    	 * in order for this method to return true
-		    	 */
+			    /*
+			   	 * After the current loop does the count meet the rlength, if so, return true
+			   	 * Just to be clear, this can be any circle, only one of them needs to meet rlength
+			   	 * in order for this method to return true
+			   	 */
 		    	if(maxCount < counts.get(i)) {
-		    		maxCount = counts.get(i);
-		    	}
-		    	/*
-		    	 * If the issuer wasn't found at all then, circle complete, put issuer as null
-		    	 * If the issuer has reached the original person who added the folder, circle complete
-		    	 * If the issuer has reached the point where it previously split, circle complete
+			    	maxCount = counts.get(i);
+			   	}
+			   	/*
+			   	 * If the issuer wasn't found at all then, circle complete, put issuer as null
+			   	 * If the issuer has reached the original person who added the folder, circle complete
+			   	 * If the issuer has reached the point where it previously split, circle complete
 		    	 * I decided the end the circles here instead of chaining multiple circles together
 		    	 * for one particular reason, there was no way to guarantee that when linking two circles
 		    	 * together that everyone actually vouches for each other, hence the decision to end it
-		    	 * at the issuer who added the file or at the part when it split.  
-		    	 */
-		    	if(!issuerfound || issuers.get(i) == history.get(0) || issuers.get(i) == history.get(i)) {
-		    		issuers.set(i, null);
-		    	}
+			     * at the issuer who added the file or at the part when it split.  
+			   	 */
+			   	if(!issuerfound || issuers.get(i) == history.get(0) || issuers.get(i) == history.get(i)) {
+			   		issuers.set(i, null);
+			   	}
 		    	//Reset the loop if we got to the end and there's still some issuers that aren't null
-		    	if(i == issuers.size() - 1 && !nullcheck) {
-	    			i = 0;
-	    			nullcheck = true;
-	    		}
-		    	//otherwise keep going if not the end
+			   	if(i == issuers.size() - 1) {
+			   		boolean nullcheck = true;
+				   	for(String nully: issuers) {
+				   		if(nully != null) {
+				   			nullcheck = false;
+				   		}
+				   	}
+				   	if(nullcheck) {
+				   		break;
+				   	}
+				   	else {
+			    		System.out.println("Loop reset i = 0\n");
+			    		i = 0;
+				   	}
+		    	}
 		    	else {
 		    		i++;
 		    	}
+		    	iteration++;
 	    	}
-	    	return maxCount;
-	    }
+    		return maxCount;
+    	}
 	}
 	
 	/**
@@ -580,9 +591,9 @@ public class cert {
 		return adder;
 	 }
 
-//Will be commented out later	
-public static void main(String args[]) 
-throws IOException, KeyStoreException, GeneralSecurityException {
+	 //Will be commented out later
+	public static void main(String args[]) 
+	throws IOException, KeyStoreException, GeneralSecurityException {
 		cert.initCryptoServer(args[0]);
 		try {
 			KeyStore ks = KeyStore.getInstance("JKS");
@@ -593,6 +604,8 @@ throws IOException, KeyStoreException, GeneralSecurityException {
 		    	System.out.println("Found the server certificate");
 		    }
 		    keystore.close();
+		    /*
+		     * ENCRYPTION/DECRYPTION TESTING
 		    FileInputStream teste = new FileInputStream("color.png");
 			byte[] test = new byte[teste.available()];
 			teste.read(test);
@@ -611,25 +624,44 @@ throws IOException, KeyStoreException, GeneralSecurityException {
 			byte[] decryptest = decrypt(etestb, args[0]);
 			dtest.write(decryptest);
 			dtest.close();
+			*/
 
-		    
-		    FileInputStream fispem = new FileInputStream("oldtrusty.pem");
+		    FileInputStream Bpem = new FileInputStream("B.pem");
+		    CertificateFactory Bcf = CertificateFactory.getInstance("X.509");
+		    X509Certificate Bcert = (X509Certificate) Bcf.generateCertificate(Bpem);
+		    Bpem.close();
+		    ks.setCertificateEntry(Bcert.getIssuerX500Principal().toString(), Bcert);
+		    if(ks.containsAlias(Bcert.getIssuerX500Principal().toString())) {
+		    	System.out.println("B cert added");
+		    }
+		    FileInputStream fispem = new FileInputStream("AB.pem");
 		    CertificateFactory cf = CertificateFactory.getInstance("X.509");
-		    X509Certificate cer = (X509Certificate) cf.generateCertificate(fispem);
-		    if(validate(cer)) {
+		    X509Certificate cert = (X509Certificate) cf.generateCertificate(fispem);
+		    fispem.close();
+		    System.out.println(cert);
+		    if(validate(cert, Bcert.getIssuerX500Principal().toString(), ks)) {
 		    	System.out.println("Server Certificate Validated");
 		    }
-		    fispem.close();
 		    
 			
 			/*
 			 * Getting the distance checking, here Ill just put certs that are valid
 			 * since it uses only the aliases. I only need the certs to be valid for testing.
 			 */
-			ks.setCertificateEntry("Fake-A-A", cer);
-			ks.setCertificateEntry("Fake-A-B", cer);
-			ks.setCertificateEntry("Fake-B-C", cer);
-			ks.setCertificateEntry("Fake-C-D", cer);
+		    //First Circle nice and Linear! (PASS: FOUND LENGTH OF 3)
+			ks.setCertificateEntry("Fake-A-A", cert);
+			ks.setCertificateEntry("Fake-A-B", cert);//1
+			ks.setCertificateEntry("Fake-B-C", cert);//2
+			ks.setCertificateEntry("Fake-C-D", cert);//3
+			//Create another Circle with shorter length than Linear (PASS: FOUND LENGTH OF 3)
+			ks.setCertificateEntry("Fake-B-E", cert);//2
+			//Create another Circle with longer length than Linear 
+			ks.setCertificateEntry("Fake-B-H", cert);//2
+			ks.setCertificateEntry("Fake-H-I", cert);//3
+			ks.setCertificateEntry("Fake-I-J", cert);//4
+			ks.setCertificateEntry("Fake-J-K", cert);//5
+			ks.setCertificateEntry("Fake-K-M", cert);//6
+			//Create another Circle with longer length than linear
 			/*
 			Enumeration<String> s = ks.aliases();
 		    while(s.hasMoreElements()) {
@@ -653,8 +685,8 @@ throws IOException, KeyStoreException, GeneralSecurityException {
 				System.out.println("Found the Fake-A-A using checkTheAdder");
 			}
 			
-		    int result = gettingTheDist(filename, ks);
-		    System.out.println(result);
+		    //int result = gettingTheDist(filename, ks);
+		    //System.out.println(result);
 		    
 		    
 		}
