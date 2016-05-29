@@ -56,19 +56,21 @@ public class ServerThread extends Thread{
 	public void run() {
 		System.out.println("thread running");
 		System.out.println("IP: " + socket.getRemoteSocketAddress());
+		Boolean isReading = true;
+		FileManager fm = new FileManager();
+		String[] commandsarray = new String[4];
+		byte[] k = "k".getBytes();
+		byte[] x = "x".getBytes();
+		byte[] r = "r".getBytes();
+		byte[] c = "c".getBytes();
+
+		BufferedInputStream in = null; 
+		BufferedOutputStream out = null;
+		FileInputStream certinstream = null;
 		try{
+			in = new BufferedInputStream(socket.getInputStream(), 1024);
+			out = new BufferedOutputStream(socket.getOutputStream(), 1024);
 			
-			
-			Boolean isReading = true;
-			FileManager fm = new FileManager();
-			String[] commandsarray = new String[4];
-			byte[] k = "k".getBytes();
-			byte[] x = "x".getBytes();
-			byte[] r = "r".getBytes();
-
-			BufferedInputStream in = new BufferedInputStream(socket.getInputStream(), 1024);
-
-			BufferedOutputStream out = new BufferedOutputStream(socket.getOutputStream(), 1024);
 			
 			
 			System.out.println("receiving cert");
@@ -81,42 +83,40 @@ public class ServerThread extends Thread{
 					System.out.println("writing completion detected");
 					certreceived = true;
 				}
-				fm.writeToFile(this.getName(), data, len);
+				fm.writeToFile(this.getName(), data, len, 0);
 				for(int j = 0; j < data.length; j++){
 					System.out.print(data[j]);
 				}
 			}
 			System.out.println("cert received");
 			CertificateFactory handshakecf = CertificateFactory.getInstance("X.509");
-			Certificate handshakecert = handshakecf.generateCertificate(new FileInputStream(fm.getFileFile(this.getName())));
+			certinstream = new FileInputStream(fm.getFileFile(this.getName(), 0));
+			System.out.println("certinstream null: " + (certinstream == null));
+			Certificate handshakecert = handshakecf.generateCertificate(certinstream);
+			System.out.println("handshakecert null: " + (certinstream == null));
 			X509Certificate x509handshakecert = (X509Certificate) handshakecert;
-
+			System.out.println("x509handshakecert null: " + (certinstream == null));
+	
 			
-			if(cert.validate(x509handshakecert, password, ks)){
+			
+			if(cert.validate(x509handshakecert, x509handshakecert.getSubjectX500Principal().toString(), ks)){
 				System.out.println("validation successful");
 				cert.storeTrustedCert(x509handshakecert, password);
 				out.write(k, 0, 1);
 				out.flush();	
 			} else {
 				System.out.println("validation failed");
+				out.write(c, 0, 1);
+				out.flush();
 				socket.close();
 				isReading = false;
 			}
 			
-			fm.clearcontents(this.getName());
+			fm.clearcontents(this.getName(), 0);
 			
 			
 
 			while(isReading){
-				/*
-				System.out.println(Character.toString((char) in.read()));
-				out.write("hello world 1", 0, 13);
-				out.flush();
-				System.out.println(Character.toString((char) in.read()));
-				//out.newLine();
-				out.write("asdfsadfsafds", 0 , 13);
-				out.flush();
-				isReading = false;*/
 			
 				System.out.println("state is: "+ state);
 				
@@ -144,13 +144,13 @@ public class ServerThread extends Thread{
 						System.out.println("0 confirmed");
 						
 						if(fm.listDir().contains(commandsarray[1])){
-							/*if(!fm.isWritable(commandsarray[1])){
+							if(!fm.isWritable(commandsarray[1])){
 								System.out.println("file is not writable");
 								out.write(r, 0, 1);
 								out.flush();
 								isReading = false;
 								break;
-							}*/
+							}
 							out.write(x, 0, 1);
 							out.flush();
 							isReading = false;
@@ -251,14 +251,14 @@ public class ServerThread extends Thread{
 							System.out.println("writing completion detected");
 							writingCompleted = true;
 						}
-						fm.writeToFile(commandsarray[1], data, data.length);
+						fm.writeToFile(commandsarray[1], data, data.length, 1);
 						for(int j = 0; j < data.length; j++){
 							System.out.print(data[j]);
 						}
 					}
 
-					byte[] encrypted = cert.encrypt(fm.openFileAsByte((commandsarray[1])), password);
-					fm.writeToFile(commandsarray[1]+"encrypted", encrypted, encrypted.length);
+					byte[] encrypted = cert.encrypt(fm.openFileAsByte((commandsarray[1]), 1), password);
+					fm.writeToFile(commandsarray[1]+"encrypted", encrypted, encrypted.length, 1);
 					CertificateFactory cf = CertificateFactory.getInstance("X.509");
 					X509Certificate sendercert = (X509Certificate) cf.generateCertificate(new FileInputStream(this.getName()));
 					cert.addToTheCircleOfLife(sendercert, commandsarray[1]+"encrypted", ks, password);
@@ -280,7 +280,7 @@ public class ServerThread extends Thread{
 				if(state == 1){//sending file
 					System.out.println("state 1 start");										
 					System.out.println("starting decrypt");
-					byte[] read = fm.openFileAsByte(commandsarray[1]+"encrypted");
+					byte[] read = fm.openFileAsByte(commandsarray[1]+"encrypted", 1);
 					byte[] data = cert.decrypt(read, password);
 					//byte[] data = abcd.openFileAsByte(commandsarray[1]);
 					System.out.println("data length is " + data.length);
@@ -337,18 +337,18 @@ public class ServerThread extends Thread{
 							System.out.println("writing completion detected");
 							writingCompleted = true;
 						}
-						fm.writeToFile(commandsarray[2], data, len);
+						fm.writeToFile(commandsarray[1], data, len, 0);
 						for(int j = 0; j < data.length; j++){
 							System.out.print(data[j]);
 						}
 					}
 					CertificateFactory cf = CertificateFactory.getInstance("X.509");
-					Certificate vouchcert = cf.generateCertificate(new FileInputStream(fm.getFileFile(commandsarray[2])));
+					certinstream = new FileInputStream(fm.getFileFile(commandsarray[1], 0));
+					Certificate vouchcert = cf.generateCertificate(certinstream);
 					System.out.println(vouchcert);
 					X509Certificate x509cert = (X509Certificate) vouchcert;
 					cert.addToTheCircleOfLife(x509cert, commandsarray[1], ks, password);
 					System.out.println("vouched");
-					fm.deleteFile(commandsarray[2]);
 					isReading = false;
 					
 				}
@@ -360,14 +360,23 @@ public class ServerThread extends Thread{
 
 		 }
 			
-			out.flush();
-			out.close();
-			in.close();
-			socket.close();
-			System.out.println("Thread died:" + this.getName());
+			
+			
 
 		} catch(Exception e){
 			System.out.println(e);
+		} finally {		
+			try {
+				System.out.println("closing streams in serverthread");
+				out.flush();			
+				out.close();
+				in.close();
+				certinstream.close();
+				socket.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			server.endThread(this.getName());
 		}
 
 	}

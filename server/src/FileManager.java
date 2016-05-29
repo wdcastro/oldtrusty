@@ -13,6 +13,7 @@ import java.util.ArrayList;
 public class FileManager {
 	Path rootdir = Paths.get("");
 	Path filedir = rootdir.resolve("files");
+	Path certdir = rootdir.resolve("certs");
 	public FileManager(){
 		
 	}
@@ -39,8 +40,13 @@ public class FileManager {
 		
 	}
 	
-	public File getFileFile(String name){
-		Path file = filedir.resolve(name);
+	public File getFileFile(String name, int type){
+		Path file = null;
+		if(type == 0){
+			file = certdir.resolve(name);
+		} else {
+		file = filedir.resolve(name);
+		}
 		return file.toFile();
 	}
 	
@@ -59,15 +65,21 @@ public class FileManager {
 		try{
 			Path file = filedir.resolve(name);
 			Files.delete(file);
+			System.out.println("file deleted: "+name);
 		} catch (Exception e){
 			System.out.println("cannot delete");
 			System.out.println(e);
 		}
 	}
 	
-	public void writeToFile(String name, byte[] bytearray, int len){
-		FileOutputStream fos;
-		Path pathtofile = filedir.resolve(name);
+	public void writeToFile(String name, byte[] bytearray, int len, int type){
+		FileOutputStream fos = null;
+		Path pathtofile = null;
+		if(type == 0){
+			pathtofile = certdir.resolve(name);
+		} else {
+			pathtofile = filedir.resolve(name);
+		}
 		File file = pathtofile.toFile();
 		try {
 			fos = new FileOutputStream(file, true);
@@ -78,24 +90,44 @@ public class FileManager {
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			System.out.println(e);
+		} finally {
+			try {
+				fos.close();
+				System.out.println("finally reached; writeToFile has closed fos");
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 		}
 
 	}
 	
-	public void clearcontents(String name){
-		FileOutputStream fos;
-		Path pathtofile = filedir.resolve(name);
+	
+	public void clearcontents(String name, int type){
+		FileOutputStream fos = null;
+		Path pathtofile = null;
+		if(type == 0){
+			pathtofile = certdir.resolve(name);
+		} else {
+			pathtofile = filedir.resolve(name);
+		}
 		File file = pathtofile.toFile();
 		try {
-			fos = new FileOutputStream(file, true);
+			fos = new FileOutputStream(file, false);
 			String s = "";
 			fos.write(s.getBytes(), 0, 0);
 			System.out.println("file cleared: " + name);
 			fos.flush();
 			fos.close();
 		} catch (Exception e) {
-			// TODO Auto-generated catch block
 			System.out.println(e);
+		} finally{
+			try {
+				System.out.println("clearcontents fos closed");
+				fos.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
 		}
 		
 	}
@@ -121,8 +153,14 @@ public class FileManager {
 		}
 	}
 	
-	public byte[] openFileAsByte(String name){
-		Path pathtofile = filedir.resolve(name);
+	public byte[] openFileAsByte(String name, int type){
+		Path pathtofile = null;
+		if(type == 0){
+			pathtofile = certdir.resolve(name);
+		} else {
+			pathtofile = filedir.resolve(name);
+		}
+		
 		byte[] data = null;
 		try {
 			 data = Files.readAllBytes(pathtofile);

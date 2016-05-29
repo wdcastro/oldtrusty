@@ -23,14 +23,14 @@ public class encdec {
 			System.out.println(args[1].toString());
 			if(args[0].equals("encrypt")){
 				System.out.println("encrypting");
-				byte[] encrypted = cert.encrypt(fm.openFileAsByte(args[1]), "pass");
-				fm.writeToFile(args[1] + "encrypted", encrypted, encrypted.length);
+				byte[] encrypted = cert.encrypt(fm.openFileAsByte(args[1], 1), "pass");
+				fm.writeToFile(args[1] + "encrypted", encrypted, encrypted.length, 1);
 				System.out.println("encrypt success");
 			} else if(args[0].equals("decrypt")){
 				System.out.println("decrypting");
-				byte[] read = cert.decrypt(fm.openFileAsByte(args[1]+"encrypted"), "pass");
+				byte[] read = cert.decrypt(fm.openFileAsByte(args[1]+"encrypted",1), "pass");
 				System.out.println(read);
-				fm.writeToFile(args[1], read, read.length);
+				fm.writeToFile(args[1], read, read.length, 1);
 				System.out.println("decrypt success");
 			}
 		} catch (InvalidKeyException | NoSuchAlgorithmException

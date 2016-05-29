@@ -252,13 +252,19 @@ public class cert {
 			 * if the date (and time) is not within these dates (and times), then the
 			 * checkValidity will throw an exception
 			 */
+			System.out.println("validate reached");
+			System.out.println(indip+" "+signer+" "+ks);
 			X509Certificate signerCert = (X509Certificate) ks.getCertificate(signer);
+			System.out.println("signerCert is: "+ signerCert);
 			if(indip.getIssuerX500Principal().equals(indip.getSubjectX500Principal())) {
+				System.out.println("if conditions met validate");
+				System.out.println("signercert pubkey is: " +signerCert.getPublicKey());
 				indip.checkValidity();
 				indip.verify(signerCert.getPublicKey());
 				return true;
 			}
 			else {
+				System.out.println("else conditions met validate");
 				Enumeration<String> en = ks.aliases();
 
 				X509Certificate signingcert = null;

@@ -171,4 +171,11 @@ public class server {
 		}
 		
 	}
+
+	public static void endThread(String name) {
+		FileManager fm = new FileManager();
+		fm.clearcontents(name, 0);
+		System.out.println("Thread died: " + name);
+		
+	}
 }
