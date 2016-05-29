@@ -23,7 +23,9 @@ import java.security.cert.X509Certificate;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.InvalidParameterSpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.util.ArrayList;
 import java.util.Enumeration;
+import java.util.List;
 
 import javax.net.ssl.TrustManagerFactory;
 import javax.crypto.BadPaddingException;
@@ -42,6 +44,8 @@ import javax.net.ssl.X509TrustManager;
 public class server {
 	
 	public static String pass;
+	public static Object readwritemonitor = new Object();
+	public static int nextid = 0;
 	public server(){
 		
 
@@ -58,6 +62,7 @@ public class server {
 		pass = args[1];
 		
 		Boolean listening = true;
+		
 		
 		
 		try {
@@ -97,8 +102,6 @@ public class server {
 			fis.close();
 			kmf.init(ks, args[1].toCharArray());
 			
-		
-			
 			
 			System.out.println("Store lists------------------");
 			Enumeration<String> en = ks.aliases();
@@ -117,7 +120,6 @@ public class server {
 			System.out.println("server socket created "+ args[0]);
 			
 			ss.setEnabledProtocols(new String[]{"SSLv3"});
-			//ss.setEnabledCipherSuites(new String[] {"TLS_RSA_WITH_AES_128_CBC_SHA","TLS_EMPTY_RENEGOTIATION_INFO_SCSV"});
 			System.out.println("ssl version set");
 
 			/*System.out.println("ciphers");

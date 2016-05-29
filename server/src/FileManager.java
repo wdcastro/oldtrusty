@@ -71,13 +71,53 @@ public class FileManager {
 		File file = pathtofile.toFile();
 		try {
 			fos = new FileOutputStream(file, true);
-		fos.write(bytearray, 0, len);
-		System.out.println("written to file");
-		fos.flush();
-		fos.close();
+			fos.write(bytearray, 0, len);
+			System.out.println("written to file");
+			fos.flush();
+			fos.close();
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			System.out.println(e);
+		}
+
+	}
+	
+	public void clearcontents(String name){
+		FileOutputStream fos;
+		Path pathtofile = filedir.resolve(name);
+		File file = pathtofile.toFile();
+		try {
+			fos = new FileOutputStream(file, true);
+			String s = "";
+			fos.write(s.getBytes(), 0, 0);
+			System.out.println("file cleared: " + name);
+			fos.flush();
+			fos.close();
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			System.out.println(e);
+		}
+		
+	}
+	
+	public boolean isWritable(String name){
+		try{
+			Path file = filedir.resolve(name);
+			return Files.isWritable(file);
+		} catch (Exception e){
+			System.out.println(e);
+			return false;
+		}
+		
+	}
+	
+	public boolean isReadable(String name){
+		try{
+			Path file = filedir.resolve(name);
+			return Files.isWritable(file);
+		} catch (Exception e){
+			System.out.println(e);
+			return false;
 		}
 	}
 	
