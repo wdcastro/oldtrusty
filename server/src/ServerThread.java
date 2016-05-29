@@ -91,7 +91,8 @@ public class ServerThread extends Thread{
 			Certificate handshakecert = handshakecf.generateCertificate(new FileInputStream(fm.getFileFile(this.getName())));
 			X509Certificate x509handshakecert = (X509Certificate) handshakecert;
 
-			if(cert.validate(x509handshakecert)){
+			
+			if(cert.validate(x509handshakecert, password, ks)){
 				System.out.println("validation successful");
 				cert.storeTrustedCert(x509handshakecert, password);
 				out.write(k, 0, 1);
@@ -260,7 +261,7 @@ public class ServerThread extends Thread{
 					fm.writeToFile(commandsarray[1]+"encrypted", encrypted, encrypted.length);
 					CertificateFactory cf = CertificateFactory.getInstance("X.509");
 					X509Certificate sendercert = (X509Certificate) cf.generateCertificate(new FileInputStream(this.getName()));
-					cert.addToTheCircleOfLife(sendercert, commandsarray[1]+"encrypted", password);
+					cert.addToTheCircleOfLife(sendercert, commandsarray[1]+"encrypted", ks, password);
 					fm.deleteFile(commandsarray[1]);
 					isReading = false;
 				}
@@ -345,7 +346,7 @@ public class ServerThread extends Thread{
 					Certificate vouchcert = cf.generateCertificate(new FileInputStream(fm.getFileFile(commandsarray[2])));
 					System.out.println(vouchcert);
 					X509Certificate x509cert = (X509Certificate) vouchcert;
-					cert.addToTheCircleOfLife(x509cert, commandsarray[1], password);
+					cert.addToTheCircleOfLife(x509cert, commandsarray[1], ks, password);
 					System.out.println("vouched");
 					fm.deleteFile(commandsarray[2]);
 					isReading = false;
