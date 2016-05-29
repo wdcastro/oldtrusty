@@ -361,16 +361,14 @@ public class cert {
 	 * @throws IOException
 	 */
 	private static String getFilenameAlias(String filename, KeyStore ks) 
-	throws KeyStoreException, NoSuchAlgorithmException, CertificateException, IOException {
+	throws KeyStoreException {
 	    String theOne = null;
 	    Enumeration<String> loa = ks.aliases();
 	    while(loa.hasMoreElements()) {
 	    	String ss = loa.nextElement();
 	    	String[] split = ss.split("-");
 		    if(split.length == 3 && split[1].equals(split[2])) {
-				for(String part: split) {
-					System.out.println(part);
-				}
+				theOne = ss;
 	    	}
 	    
 	    }
@@ -389,14 +387,9 @@ public class cert {
 	 * @param password password for the keystore/encryption/server
 	 * @return found true = found name false = not found name
 	 */
-	public static boolean wantedDOA(String filename,String name, String password) {
+	public static boolean wantedDOA(String filename,String name, KeyStore ks) {
 		boolean found = false;
 		try {
-			KeyStore ks = KeyStore.getInstance("JKS");
-			char[] pass = password.toCharArray();
-		    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
-		    ks.load(keystore, pass);
-		    keystore.close();
 			Enumeration<String> loa = ks.aliases();
 		    while(loa.hasMoreElements()) {
 		    	String c = loa.nextElement();
@@ -428,12 +421,8 @@ public class cert {
 	 * @throws GeneralSecurityException 
 	 * 
 	 */
-	public static int gettingTheDist(String password, String filename) 
+	public static int gettingTheDist(String filename, KeyStore ks) 
 	throws IOException, GeneralSecurityException {
-		KeyStore ks = KeyStore.getInstance("JKS");
-		char[] pass = password.toCharArray();
-	    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
-	    ks.load(keystore, pass);
 	    String theOne = getFilenameAlias(filename, ks);
 	    if(theOne == null) {
 	    	System.out.println("File does not exist in Keystore");
@@ -576,28 +565,19 @@ public class cert {
 	 * @param sender
 	 * @param password
 	 * @return boolean
+	 * @throws GeneralSecurityException 
+	 * @throws IOException 
 	 */
-	 public static boolean checkTheAdder(String filename, String sender, String password) {
-		 try {
-			//Get the KeyStore
-	    	KeyStore ks = KeyStore.getInstance("JKS");
-			char[] pass = password.toCharArray();
-		    FileInputStream keystore = new java.io.FileInputStream("KeyStore");
-		    ks.load(keystore, pass);
-		    //Check if alias exists, return true if it does
-		    if(ks.containsAlias(filename+"-"+sender+"-"+sender)) {
-		    	return true;
-		    }
-		    //If it doesn't, return false (someone else sent it)
-		    else {
-		    	return false;
-		    }
-		 }
-		 //Catch exceptions and return false
-		 catch (Exception e) {
-			 System.out.print(e + ": "+e.getMessage());
-			 return false;
-		 }
+	 public static boolean checkTheAdder(String filename, String sender, KeyStore ks) 
+	throws GeneralSecurityException, IOException {
+		boolean adder = false;
+		//Check if alias exists, return true if it does
+		String alias = (filename+"-"+sender+"-"+sender).toLowerCase();
+		System.out.println(alias);
+		if(ks.containsAlias(alias)) {
+		   	adder = true;
+		}
+		return adder;
 	 }
 
 //Will be commented out later	
@@ -650,6 +630,7 @@ throws IOException, KeyStoreException, GeneralSecurityException {
 			ks.setCertificateEntry("Fake-A-B", cer);
 			ks.setCertificateEntry("Fake-B-C", cer);
 			ks.setCertificateEntry("Fake-C-D", cer);
+			/*
 			Enumeration<String> s = ks.aliases();
 		    while(s.hasMoreElements()) {
 		    	String ss = s.nextElement();
@@ -661,14 +642,20 @@ throws IOException, KeyStoreException, GeneralSecurityException {
 		    	}
 		    
 		    }
-			
-			if(checkTheAdder("fake", "a", args[0])) {
-				System.out.println("Found the Fake-A-A");
+			*/
+			String filename = "Fake";
+			String sender = "A";
+			String alias = (filename+"-"+sender+"-"+sender).toLowerCase();
+			if(ks.containsAlias(alias)) {
+				System.out.println("Found the Fake-A-A using Contains Alias");
 			}
-		    System.out.println(getFilenameAlias("Fake", ks));
+			if(checkTheAdder(filename,sender,ks)) {
+				System.out.println("Found the Fake-A-A using checkTheAdder");
+			}
+			
+		    int result = gettingTheDist(filename, ks);
+		    System.out.println(result);
 		    
-		    int result = gettingTheDist(args[0], "Fake");
-			System.out.println(result);
 		    
 		}
 		catch (Exception e) {
