@@ -1,5 +1,4 @@
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
@@ -9,6 +8,12 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 
+/**
+ * @author William Ignatius D'Castro - 21342121
+ * For group project with Noah Macri and Joel Dunstan for CITS3002
+ * Class that manages I/O for files on local server directories
+ * 
+ */
 
 public class FileManager {
 	Path rootdir = Paths.get("");
@@ -84,7 +89,7 @@ public class FileManager {
 		try {
 			fos = new FileOutputStream(file, true);
 			fos.write(bytearray, 0, len);
-			System.out.println("written to file");
+			//System.out.println("written to file");
 			fos.flush();
 			fos.close();
 		} catch (Exception e) {

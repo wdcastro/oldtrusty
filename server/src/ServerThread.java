@@ -1,19 +1,9 @@
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
-import java.net.ServerSocket;
-import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.KeyStore;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
@@ -25,7 +15,12 @@ import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocket;
 
 
-//nvidia_guy21
+/**
+ * @author William Ignatius D'Castro - 21342121
+ * For group project with Noah Macri and Joel Dunstan for CITS3002
+ * Thread class that gets run when a connection is accepted
+ * 
+ */
 
 public class ServerThread extends Thread{
 	private SSLSocket socket = null;
@@ -33,12 +28,11 @@ public class ServerThread extends Thread{
 	private String password;
 	private KeyStore ks;
 	//-1 waiting for command
-		// 1 waiting for name for add
-		// 2 receiving file for add
-	//3 waiting for name for send
-	//4 writing file for send
-	
-	////////////NEED TO MAKE SURE CERTS ARE STORED IN TRUSTSTORE
+	// 0 add new file
+	// 1 fetch file
+	// 2 get directory list
+	// 3 vouch
+
 
 	
 
@@ -56,6 +50,7 @@ public class ServerThread extends Thread{
 	public void run() {
 		System.out.println("thread running");
 		System.out.println("IP: " + socket.getRemoteSocketAddress());
+		System.out.println("peerid: " + socket.getSession().getPeerHost());
 		Boolean isReading = true;
 		FileManager fm = new FileManager();
 		String[] commandsarray = new String[4];
@@ -83,14 +78,14 @@ public class ServerThread extends Thread{
 					System.out.println("writing completion detected");
 					certreceived = true;
 				}
-				fm.writeToFile(this.getName(), data, len, 0);
+				fm.writeToFile(socket.getSession().getPeerHost(), data, len, 0);
 				for(int j = 0; j < data.length; j++){
 					System.out.print(data[j]);
 				}
 			}
 			System.out.println("cert received");
 			CertificateFactory handshakecf = CertificateFactory.getInstance("X.509");
-			certinstream = new FileInputStream(fm.getFileFile(this.getName(), 0));
+			certinstream = new FileInputStream(fm.getFileFile(socket.getSession().getPeerHost(), 0));
 			System.out.println("certinstream null: " + (certinstream == null));
 			Certificate handshakecert = handshakecf.generateCertificate(certinstream);
 			System.out.println("handshakecert null: " + (certinstream == null));
@@ -112,7 +107,7 @@ public class ServerThread extends Thread{
 				isReading = false;
 			}
 			
-			fm.clearcontents(this.getName(), 0);
+			fm.clearcontents(socket.getSession().getPeerHost(), 0);
 			
 			
 
@@ -138,12 +133,13 @@ public class ServerThread extends Thread{
 					}
 					
 					System.out.println("read mode");
-					isReading = false;
+
 					
 					if(commandsarray[0].equals("0")){//add
 						System.out.println("0 confirmed");
-						
-						if(fm.listDir().contains(commandsarray[1])){
+						//append
+						boolean failed = true;
+						if(fm.listDir().contains(commandsarray[1])){							
 							if(!fm.isWritable(commandsarray[1])){
 								System.out.println("file is not writable");
 								out.write(r, 0, 1);
@@ -151,28 +147,33 @@ public class ServerThread extends Thread{
 								isReading = false;
 								break;
 							}
-							if(cert.checkTheAdder(socket.getSession().getPeerHost())){
-							out.write(x, 0, 1);
-							out.flush();
-							isReading = false;
-							break;
+							if(!cert.checkTheAdder(commandsarray[1]+"encrypted", x509handshakecert.getSubjectX500Principal().toString(),ks)){
+								System.out.println("adder check failed");
+								out.write(x, 0, 1);
+								out.flush();
+								isReading = false;								
+								break;
+							} else {
+								failed = false;
+								System.out.println("adder check success");
 							}
+						} else {
+							System.out.println("adder check success");
+							failed = false;
 						}
+						if(!failed){
 						state = 0;
 						out.write(k, 0, 1);
 						out.flush();
 						System.out.println("state is: "+ state);
+						} else {
+							System.out.println("one or more checks failed");
+							isReading = false;
+						}
 						
 					}
 					
 					if(commandsarray[0].equals("1")){//fetch
-						/*if(!fm.isReadable(commandsarray[1])){
-							
-							out.write(r, 0, 1);
-							out.flush();
-							isReading = false;
-							break;
-						}*/
 						if(!fm.doesFileExist(commandsarray[1])){
 							//file doesnt exist
 							System.out.println("file doesnt exists or can't be read");
@@ -254,17 +255,12 @@ public class ServerThread extends Thread{
 							writingCompleted = true;
 						}
 						fm.writeToFile(commandsarray[1], data, data.length, 1);
-						for(int j = 0; j < data.length; j++){
-							System.out.print(data[j]);
-						}
 					}
 
 					byte[] encrypted = cert.encrypt(fm.openFileAsByte((commandsarray[1]), 1), password);
 					fm.writeToFile(commandsarray[1]+"encrypted", encrypted, encrypted.length, 1);
-					CertificateFactory cf = CertificateFactory.getInstance("X.509");
-					X509Certificate sendercert = (X509Certificate) cf.generateCertificate(new FileInputStream(this.getName()));
-					cert.addToTheCircleOfLife(sendercert, commandsarray[1]+"encrypted", ks, password);
-					fm.deleteFile(commandsarray[1]);
+					cert.addToTheCircleOfLife(x509handshakecert, commandsarray[1]+"encrypted", ks, password);
+					//fm.deleteFile(commandsarray[1]);
 					isReading = false;
 				}
 				
@@ -304,7 +300,6 @@ public class ServerThread extends Thread{
 				if(state == 2){
 					ArrayList<String> directories = fm.listDir();
 					byte[] bytestosend = new byte[128];
-					byte[] bytename = new byte[128];
 					String eol = System.getProperty("line.separator");
 					String linestosend = "";
 					for(int i = 0; i< directories.size(); i++){
@@ -313,7 +308,6 @@ public class ServerThread extends Thread{
 					}
 					System.out.println();
 					bytestosend= linestosend.getBytes();
-					//bytestosend = fm.openFileAsByte("dirlist.txt");
 					out.write(bytestosend, 0, bytestosend.length);
 					out.flush();
 					isReading = false;
@@ -374,11 +368,13 @@ public class ServerThread extends Thread{
 				out.close();
 				in.close();
 				certinstream.close();
+				server.endThread(socket.getSession().getPeerHost());
 				socket.close();
+				
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
-			server.endThread(this.getName());
+			
 		}
 
 	}

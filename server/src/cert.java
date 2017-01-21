@@ -252,22 +252,12 @@ public class cert {
 			 * if the date (and time) is not within these dates (and times), then the
 			 * checkValidity will throw an exception
 			 */
-<<<<<<< HEAD
-			System.out.println("validate reached");
-			System.out.println(indip+" "+signer+" "+ks);
-			X509Certificate signerCert = (X509Certificate) ks.getCertificate(signer);
-			System.out.println("signerCert is: "+ signerCert);
-=======
->>>>>>> d5352c20ffbdc0db1a90bd6114eda1d88e5d78c4
 			if(indip.getIssuerX500Principal().equals(indip.getSubjectX500Principal())) {
-				System.out.println("if conditions met validate");
-				System.out.println("signercert pubkey is: " +signerCert.getPublicKey());
 				indip.checkValidity();
 				indip.verify(indip.getPublicKey());
 				return true;
 			}
 			else {
-				System.out.println("else conditions met validate");
 				Enumeration<String> en = ks.aliases();
 
 				X509Certificate signingcert = null;
@@ -371,6 +361,8 @@ public class cert {
 		if(validate(cert2add, cert2add.getSubjectX500Principal().toString(), ks)) {
 		    //Create the string which will be the alias with format above
 		    String alias = filename + "-" + cert2add.getIssuerX500Principal().toString() + "-" + cert2add.getSubjectX500Principal().toString();
+		    System.out.println("file added circle alias is:");
+		    System.out.println(alias);
 		    //Add the entry
 		    ks.setCertificateEntry(alias, cert2add);
 		    //Save the KeyStore
@@ -666,6 +658,9 @@ public class cert {
 		    CertificateFactory Bcf = CertificateFactory.getInstance("X.509");
 		    X509Certificate Bcert = (X509Certificate) Bcf.generateCertificate(Bpem);
 		    Bpem.close();
+		    if(validate(Bcert,Bcert.getSubjectX500Principal().toString(),ks)){
+		    	System.out.println("B self signed cert validated");
+		    }
 		    FileInputStream Cpem = new FileInputStream("C.pem");
 		    CertificateFactory Ccf = CertificateFactory.getInstance("X.509");
 		    X509Certificate Ccert = (X509Certificate) Ccf.generateCertificate(Cpem);
